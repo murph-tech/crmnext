@@ -1,0 +1,235 @@
+// Prisma Schema for Next-Gen CRM
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USERS ====================
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  avatar    String?
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  leads      Lead[]
+  contacts   Contact[]
+  deals      Deal[]
+  activities Activity[]
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  USER
+  MANAGER
+}
+
+// ==================== LEADS ====================
+model Lead {
+  id          String     @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String
+  phone       String?
+  company     String?
+  jobTitle    String?
+  taxId       String?   // New field
+  address     String?   // Already exists in Contact but confirming for Lead
+  source      LeadSource @default(OTHER)
+  status      LeadStatus @default(NEW)
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // Relations
+  ownerId    String
+  owner      User       @relation(fields: [ownerId], references: [id])
+  activities Activity[]
+
+  // Convert to Contact/Deal
+  convertedToContact Contact?
+  convertedToDeal    Deal?
+
+  @@map("leads")
+}
+
+enum LeadSource {
+  WEBSITE
+  REFERRAL
+  LINKEDIN
+  COLD_CALL
+  ADVERTISEMENT
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  UNQUALIFIED
+  CONVERTED
+}
+
+// ==================== CONTACTS ====================
+model Contact {
+  id          String   @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String   @unique
+  phone       String?
+  company     String?
+  jobTitle    String?
+  taxId       String?   // New field
+  address     String?
+  city        String?
+  country     String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  ownerId      String
+  owner        User       @relation(fields: [ownerId], references: [id])
+  deals        Deal[]
+  activities   Activity[]
+  
+  // Converted from Lead
+  convertedFromId String? @unique
+  convertedFrom   Lead?   @relation(fields: [convertedFromId], references: [id])
+
+  @@map("contacts")
+}
+
+// ==================== DEALS ====================
+model Deal {
+  id           String    @id @default(cuid())
+  title        String
+  value        Float
+  currency     String    @default("THB")
+  stage        DealStage @default(QUALIFIED)
+  probability  Int       @default(20)
+  expectedCloseDate DateTime?
+  closedAt     DateTime?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  ownerId    String
+  owner      User       @relation(fields: [ownerId], references: [id])
+  contactId  String?
+  contact    Contact?   @relation(fields: [contactId], references: [id])
+  activities Activity[]
+  items      DealItem[]
+
+  // Converted from Lead
+  convertedFromId String? @unique
+  convertedFrom   Lead?   @relation(fields: [convertedFromId], references: [id])
+
+  @@map("deals")
+}
+
+enum DealStage {
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+// ==================== ACTIVITIES ====================
+model Activity {
+  id          String       @id @default(cuid())
+  type        ActivityType
+  title       String
+  description String?
+  dueDate     DateTime?
+  reminderAt  DateTime?    // When to show the reminder notification
+  reminderSent Boolean     @default(false)
+  duration    Int?         // Duration in minutes
+  completed   Boolean      @default(false)
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relations
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  leadId    String?
+  lead      Lead?    @relation(fields: [leadId], references: [id])
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id])
+  dealId    String?
+  deal      Deal?    @relation(fields: [dealId], references: [id])
+
+  @@map("activities")
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  TASK
+  NOTE
+}
+
+// ==================== PRODUCTS ====================
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  sku         String?  @unique
+  price       Float
+  type        ProductType @default(SERVICE)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  dealItems   DealItem[]
+
+  @@map("products")
+}
+
+enum ProductType {
+  INVENTORY
+  SERVICE
+}
+
+// ==================== DEAL ITEMS ====================
+model DealItem {
+  id        String   @id @default(cuid())
+  quantity  Int      @default(1)
+  price     Float    // Price at the time of deal
+  discount  Float    @default(0)
+  
+  // Relations
+  dealId    String
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+
+  @@map("deal_items")
+}
+
+// ==================== SETTINGS ====================
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   // JSON string content
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
