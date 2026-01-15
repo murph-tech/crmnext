@@ -74,28 +74,28 @@ export default function DashboardPage() {
 
   const statsData = [
     {
-      title: 'Total Revenue',
+      title: 'รายรับรวม',
       value: formatCurrency(stats?.totalRevenue || 0),
       change: { value: '12.5%', positive: true },
       icon: DollarSign,
       iconColor: '#34C759',
     },
     {
-      title: 'New Leads',
+      title: 'ลูกค้าใหม่',
       value: String(stats?.newLeads || 0),
       change: { value: '8.2%', positive: true },
       icon: Users,
       iconColor: '#007AFF',
     },
     {
-      title: 'Active Deals',
+      title: 'ดีลที่กำลังดำเนินการ',
       value: String(stats?.activeDeals || 0),
       change: { value: '3.1%', positive: false },
       icon: TrendingUp,
       iconColor: '#AF52DE',
     },
     {
-      title: 'Conversion Rate',
+      title: 'อัตราการปิดการขาย',
       value: `${stats?.conversionRate || 0}%`,
       change: { value: '5.4%', positive: true },
       icon: Target,
@@ -115,10 +115,10 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
-              Good afternoon, {user?.name?.split(' ')[0] || 'User'}
+              สวัสดีตอนบ่าย, {user?.name?.split(' ')[0] || 'คุณ'}
             </h1>
             <p className="text-gray-500 mt-1">
-              Here's what's happening with your sales pipeline today.
+              นี่คือความคืบหน้าของงานขายของคุณในวันนี้
             </p>
           </div>
 
@@ -128,7 +128,7 @@ export default function DashboardPage() {
             className="flex items-center gap-2 px-4 py-2.5 bg-[#007AFF] text-white rounded-xl font-medium text-sm shadow-lg shadow-blue-500/20 hover:bg-[#0056CC] transition-colors duration-200"
           >
             <Calendar size={16} />
-            <span>Schedule Meeting</span>
+            <span>นัดหมายประชุม</span>
           </motion.button>
         </div>
       </motion.div>
@@ -159,10 +159,10 @@ export default function DashboardPage() {
                 <div className="w-10 h-10 rounded-2xl bg-[#AF52DE]/10 flex items-center justify-center">
                   <Clock size={20} className="text-[#AF52DE]" />
                 </div>
-                Reminders & Tasks
+                งานที่ต้องทำ & การแจ้งเตือน
               </h2>
               <span className="text-sm text-gray-500 font-medium bg-gray-100 px-3 py-1 rounded-full">
-                {reminders.length} Pending
+                {reminders.length} รายการ
               </span>
             </div>
 
@@ -192,17 +192,17 @@ export default function DashboardPage() {
                           <div className="flex items-center gap-2 mb-2">
                             {isOverdue && (
                               <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-red-100 text-red-600 uppercase tracking-wide">
-                                Overdue
+                                เกินกำหนด
                               </span>
                             )}
                             {isDueToday && !isOverdue && (
                               <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-100 text-amber-700 uppercase tracking-wide">
-                                Today
+                                วันนี้
                               </span>
                             )}
                             {isDueSoon && !isDueToday && !isOverdue && (
                               <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-100 text-amber-700 uppercase tracking-wide">
-                                Soon
+                                เร็วๆนี้
                               </span>
                             )}
                             <span className={`text-xs font-semibold px-2 py-1 rounded-lg uppercase tracking-wide ${reminder.type === 'CALL' ? 'bg-blue-100 text-blue-700' :
@@ -248,8 +248,8 @@ export default function DashboardPage() {
                 <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-md mb-4">
                   <CheckCircle2 size={32} className="text-green-500" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900">All Caught Up!</h3>
-                <p className="text-gray-500 mt-1 max-w-xs mx-auto">You have no upcoming reminders or pending tasks for today.</p>
+                <h3 className="text-lg font-semibold text-gray-900">เสร็จสิ้นภารกิจ!</h3>
+                <p className="text-gray-500 mt-1 max-w-xs mx-auto">คุณไม่มีการแจ้งเตือนหรือภารกิจที่ต้องทำในวันนี้</p>
               </div>
             )}
           </motion.div>
@@ -264,13 +264,13 @@ export default function DashboardPage() {
             transition={{ duration: 0.4, delay: 0.4 }}
             className="glass-card rounded-3xl p-6"
           >
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">เมนูด่วน</h2>
 
             <div className="space-y-3">
               {[
-                { label: 'Add New Lead', color: '#007AFF', href: '/leads' },
-                { label: 'Create Deal', color: '#34C759', href: '/pipeline' },
-                { label: 'Schedule Call', color: '#AF52DE', href: '/contacts' },
+                { label: 'เพิ่มลูกค้าใหม่', color: '#007AFF', href: '/leads' },
+                { label: 'สร้างดีลใหม่', color: '#34C759', href: '/pipeline' },
+                { label: 'นัดหมายการโทร', color: '#AF52DE', href: '/contacts' },
               ].map((action) => (
                 <motion.a
                   key={action.label}
@@ -301,11 +301,11 @@ export default function DashboardPage() {
 
             {/* Performance Summary */}
             <div className="mt-6 pt-6 border-t border-black/[0.06]">
-              <h3 className="text-sm font-medium text-gray-500 mb-4">This Week's Performance</h3>
+              <h3 className="text-sm font-medium text-gray-500 mb-4">ผลงานสัปดาห์นี้</h3>
               <div className="space-y-3">
                 <div>
                   <div className="flex justify-between text-sm mb-1.5">
-                    <span className="text-gray-600">Deals Progress</span>
+                    <span className="text-gray-600">ความคืบหน้าดีล</span>
                     <span className="font-medium text-gray-900">73%</span>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -319,7 +319,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <div className="flex justify-between text-sm mb-1.5">
-                    <span className="text-gray-600">Tasks Completed</span>
+                    <span className="text-gray-600">งานที่สำเร็จ</span>
                     <span className="font-medium text-gray-900">89%</span>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -337,7 +337,7 @@ export default function DashboardPage() {
 
           {/* Recent Activity (Moved to Sidebar) */}
           <div className="glass-card rounded-3xl overflow-hidden p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">กิจกรรมล่าสุด</h2>
             <div className="space-y-4 max-h-[400px] overflow-y-auto px-1 custom-scrollbar">
               {activities.map((activity) => (
                 <div key={activity.id} className="flex gap-3 items-start pb-3 border-b border-gray-100 last:border-0 last:pb-0">

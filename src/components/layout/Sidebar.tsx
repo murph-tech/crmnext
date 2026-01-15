@@ -23,13 +23,13 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
-  { icon: Users, label: 'Leads', href: '/leads' },
-  { icon: GitBranch, label: 'Deals', href: '/pipeline' },
-  { icon: Contact, label: 'Contacts', href: '/contacts' },
-  { icon: Calendar, label: 'Activities', href: '/activities' },
-  { icon: Package, label: 'Products', href: '/products' },
-  { icon: Settings, label: 'Settings', href: '/settings' },
+  { icon: LayoutDashboard, label: 'ภาพรวม', href: '/' },
+  { icon: Users, label: 'ลูกค้าเป้าหมาย', href: '/leads' },
+  { icon: GitBranch, label: 'การขาย', href: '/pipeline' },
+  { icon: Contact, label: 'รายชื่อติดต่อ', href: '/contacts' },
+  { icon: Calendar, label: 'กิจกรรม', href: '/activities' },
+  { icon: Package, label: 'สินค้า', href: '/products' },
+  { icon: Settings, label: 'ตั้งค่า', href: '/settings' },
 ];
 
 interface SidebarProps {
@@ -183,7 +183,7 @@ export default function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           ) : (
             <>
               <ChevronLeft size={18} />
-              <span className="text-sm">Collapse</span>
+              <span className="text-sm">ย่อเมนู</span>
             </>
           )}
         </motion.button>
