@@ -28,7 +28,7 @@ export default function LoginPage() {
                 }
             } catch (err) {
                 // Use defaults if can't fetch settings
-                console.log('Using default branding');
+                // console.log('Using default branding');
             }
         };
         loadBranding();

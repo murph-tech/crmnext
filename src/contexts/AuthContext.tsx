@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             // Set new timer
             inactivityTimer = setTimeout(() => {
-                console.log('Auto logout due to inactivity');
+                console.warn('Auto logout due to inactivity');
                 logout();
                 window.location.href = '/login?reason=inactivity';
             }, INACTIVITY_TIMEOUT);
