@@ -68,7 +68,7 @@ class ApiClient {
         return this.request<User>('/api/auth/me', { token });
     }
 
-    async updateProfile(token: string, data: { name?: string; email?: string }) {
+    async updateProfile(token: string, data: Partial<User>) {
         return this.request<User>('/api/auth/me', {
             method: 'PUT',
             body: JSON.stringify(data),
@@ -85,12 +85,14 @@ class ApiClient {
     }
 
     // Dashboard
-    async getDashboardStats(token: string) {
-        return this.request<DashboardStats>('/api/dashboard/stats', { token });
+    async getDashboardStats(token: string, timeframe?: string) {
+        const query = timeframe ? `?timeframe=${timeframe}` : '';
+        return this.request<DashboardStats>(`/api/dashboard/stats${query}`, { token });
     }
 
-    async getRecentActivity(token: string) {
-        return this.request<Activity[]>('/api/dashboard/recent-activity', { token });
+    async getRecentActivity(token: string, timeframe?: string) {
+        const query = timeframe ? `?timeframe=${timeframe}` : '';
+        return this.request<Activity[]>(`/api/dashboard/recent-activity${query}`, { token });
     }
 
     async getPipelineOverview(token: string) {
@@ -103,6 +105,14 @@ class ApiClient {
 
     async getReminders(token: string) {
         return this.request<Reminder[]>('/api/dashboard/reminders', { token });
+    }
+
+    async getWonDeals(token: string, timeframe: string = 'week') {
+        return this.request<{ name: string; won: number; lost: number }[]>(`/api/dashboard/won-deals?timeframe=${timeframe}`, { token });
+    }
+
+    async getDealsCount(token: string, timeframe: string = 'week') {
+        return this.request<{ name: string; new: number; won: number }[]>(`/api/dashboard/deals-count?timeframe=${timeframe}`, { token });
     }
 
     // Leads
@@ -239,6 +249,24 @@ class ApiClient {
             body: JSON.stringify(data),
             token,
         });
+    }
+
+    async exportDeals(token: string, filters?: { stage?: string; ownerId?: string }) {
+        const query = new URLSearchParams();
+        if (filters?.stage) query.append('stage', filters.stage);
+        if (filters?.ownerId) query.append('ownerId', filters.ownerId);
+
+        const response = await fetch(`${this.baseUrl}/api/deals/export/csv?${query.toString()}`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to export deals');
+        }
+
+        return response.blob();
     }
 
     async deleteDeal(token: string, id: string) {

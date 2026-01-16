@@ -7,21 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import Modal from '@/components/ui/Modal';
 
-interface Lead {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone?: string;
-    company?: string;
-    jobTitle?: string;
-    taxId?: string;
-    address?: string;
-    source: string;
-    status: string;
-    notes?: string;
-    createdAt: string;
-}
+import { Lead } from '@/types';
 
 const sourceOptions = ['WEBSITE', 'REFERRAL', 'LINKEDIN', 'COLD_CALL', 'ADVERTISEMENT', 'OTHER'];
 const statusOptions = ['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED', 'CONVERTED'];
@@ -163,7 +149,7 @@ export default function LeadsPage() {
             jobTitle: lead.jobTitle || '',
             taxId: lead.taxId || '',
             address: lead.address || '',
-            source: lead.source,
+            source: lead.source || 'OTHER',
             notes: lead.notes || '',
         });
         setShowEditModal(true);
@@ -238,10 +224,10 @@ export default function LeadsPage() {
                 </div>
             </motion.div>
 
-            {/* Leads Table */}
+            {/* Leads List */}
             <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex-1 flex flex-col">
-                {/* Table Header */}
-                <div className="grid grid-cols-[40px_1.5fr_120px_1.5fr_1.2fr_120px_120px] gap-4 px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider items-center">
+                {/* Desktop Table Header */}
+                <div className="hidden md:grid grid-cols-[40px_1.5fr_120px_1.5fr_1.2fr_120px_120px] gap-4 px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider items-center">
                     <div className="flex justify-center">
                         <input type="checkbox" className="rounded border-gray-300 text-[#007AFF] focus:ring-[#007AFF]" />
                     </div>
@@ -253,7 +239,7 @@ export default function LeadsPage() {
                     <div className="text-center">Owner</div>
                 </div>
 
-                {/* Table Body */}
+                {/* List Body */}
                 <div className="overflow-y-auto flex-1">
                     {leads.length === 0 ? (
                         <div className="text-center py-16 text-gray-400">
@@ -263,86 +249,154 @@ export default function LeadsPage() {
                         </div>
                     ) : (
                         leads.map((lead, index) => (
-                            <div key={lead.id} className="group grid grid-cols-[40px_1.5fr_120px_1.5fr_1.2fr_120px_120px] gap-4 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors items-center text-sm">
-                                <div className="flex justify-center">
-                                    <input type="checkbox" className="rounded border-gray-300 text-[#007AFF] focus:ring-[#007AFF]" />
-                                </div>
-
-                                {/* Name & Avatar */}
-                                <div className="flex items-center gap-3 min-w-0 pr-4">
-                                    <div
-                                        className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                                        style={{ backgroundColor: `${statusColors[lead.status]}15`, color: statusColors[lead.status] }}
-                                    >
-                                        {lead.firstName[0]}{lead.lastName[0]}
+                            <div key={lead.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                                {/* Desktop Row */}
+                                <div className="hidden md:grid group grid-cols-[40px_1.5fr_120px_1.5fr_1.2fr_120px_120px] gap-4 px-4 py-3 items-center text-sm">
+                                    <div className="flex justify-center">
+                                        <input type="checkbox" className="rounded border-gray-300 text-[#007AFF] focus:ring-[#007AFF]" />
                                     </div>
-                                    <div className="truncate">
-                                        <span className="font-medium text-gray-900 block truncate">{lead.firstName} {lead.lastName}</span>
-                                        {/* Row Actions - Visible on Hover */}
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
-                                            {lead.status !== 'CONVERTED' && (
+
+                                    {/* Name & Avatar */}
+                                    <div className="flex items-center gap-3 min-w-0 pr-4">
+                                        <div
+                                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                                            style={{ backgroundColor: `${statusColors[lead.status]}15`, color: statusColors[lead.status] }}
+                                        >
+                                            {lead.firstName[0]}{lead.lastName[0]}
+                                        </div>
+                                        <div className="truncate">
+                                            <span className="font-medium text-gray-900 block truncate">{lead.firstName} {lead.lastName}</span>
+                                            {/* Row Actions - Visible on Hover */}
+                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
+                                                {lead.status !== 'CONVERTED' && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); openConvertModal(lead); }}
+                                                        className="p-0.5 hover:bg-purple-100 rounded text-purple-600"
+                                                        title="Convert to Contact"
+                                                    >
+                                                        <ArrowRight size={12} />
+                                                    </button>
+                                                )}
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); openConvertModal(lead); }}
-                                                    className="p-0.5 hover:bg-purple-100 rounded text-purple-600"
-                                                    title="Convert to Contact"
+                                                    onClick={(e) => { e.stopPropagation(); openEditModal(lead); }}
+                                                    className="p-0.5 hover:bg-gray-200 rounded text-gray-500"
+                                                    title="Edit"
                                                 >
-                                                    <ArrowRight size={12} />
+                                                    <Edit2 size={12} />
                                                 </button>
-                                            )}
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); openEditModal(lead); }}
-                                                className="p-0.5 hover:bg-gray-200 rounded text-gray-500"
-                                                title="Edit"
-                                            >
-                                                <Edit2 size={12} />
-                                            </button>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); openDeleteModal(lead); }}
-                                                className="p-0.5 hover:bg-red-50 rounded text-red-500"
-                                                title="Delete"
-                                            >
-                                                <Trash2 size={12} />
-                                            </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); openDeleteModal(lead); }}
+                                                    className="p-0.5 hover:bg-red-50 rounded text-red-500"
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Status */}
+                                    <div>
+                                        <span
+                                            className="inline-flex px-2 py-0.5 text-[10px] font-medium rounded-full"
+                                            style={{
+                                                backgroundColor: `${statusColors[lead.status]}15`,
+                                                color: statusColors[lead.status],
+                                            }}
+                                        >
+                                            {lead.status}
+                                        </span>
+                                    </div>
+
+                                    {/* Contact Info */}
+                                    <div className="truncate">
+                                        <div className="text-gray-900 truncate">{lead.email}</div>
+                                        <div className="text-xs text-gray-500 truncate">{lead.phone || '-'}</div>
+                                    </div>
+
+                                    {/* Company */}
+                                    <div className="truncate">
+                                        <div className="text-gray-900 truncate">{lead.company || '-'}</div>
+                                        <div className="text-xs text-gray-500 truncate">{lead.jobTitle || '-'}</div>
+                                    </div>
+
+                                    {/* Source */}
+                                    <div>
+                                        <span className="inline-flex px-2 py-0.5 text-[10px] font-medium rounded text-gray-600 bg-gray-100">
+                                            {lead.source?.replace('_', ' ') || 'OTHER'}
+                                        </span>
+                                    </div>
+
+                                    {/* Owner */}
+                                    <div className="flex justify-center">
+                                        <div
+                                            className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                                            style={{
+                                                backgroundColor: (lead as any).owner?.name
+                                                    ? `hsl(${(lead as any).owner.name.charCodeAt(0) * 7 % 360}, 60%, 50%)`
+                                                    : '#6B7280'
+                                            }}
+                                            title={(lead as any).owner?.name || 'Unknown'}
+                                        >
+                                            {(lead as any).owner?.name
+                                                ? (lead as any).owner.name.substring(0, 2).toUpperCase()
+                                                : 'NA'}
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Status */}
-                                <div>
-                                    <span
-                                        className="inline-flex px-2 py-0.5 text-[10px] font-medium rounded-full"
-                                        style={{
-                                            backgroundColor: `${statusColors[lead.status]}15`,
-                                            color: statusColors[lead.status],
-                                        }}
-                                    >
-                                        {lead.status}
-                                    </span>
-                                </div>
+                                {/* Mobile Card View */}
+                                <div className="md:hidden p-4 space-y-3">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex items-center gap-3">
+                                            <div
+                                                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
+                                                style={{ backgroundColor: `${statusColors[lead.status]}15`, color: statusColors[lead.status] }}
+                                            >
+                                                {lead.firstName[0]}{lead.lastName[0]}
+                                            </div>
+                                            <div>
+                                                <h3 className="font-medium text-gray-900">{lead.firstName} {lead.lastName}</h3>
+                                                <p className="text-xs text-gray-500">{lead.company || 'No Company'}</p>
+                                            </div>
+                                        </div>
+                                        <span
+                                            className="inline-flex px-2 py-1 text-[10px] font-medium rounded-full"
+                                            style={{
+                                                backgroundColor: `${statusColors[lead.status]}15`,
+                                                color: statusColors[lead.status],
+                                            }}
+                                        >
+                                            {lead.status}
+                                        </span>
+                                    </div>
 
-                                {/* Contact Info */}
-                                <div className="truncate">
-                                    <div className="text-gray-900 truncate">{lead.email}</div>
-                                    <div className="text-xs text-gray-500 truncate">{lead.phone || '-'}</div>
-                                </div>
+                                    <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                                        <div className="truncate">📧 {lead.email}</div>
+                                        <div className="truncate">📞 {lead.phone || '-'}</div>
+                                    </div>
 
-                                {/* Company */}
-                                <div className="truncate">
-                                    <div className="text-gray-900 truncate">{lead.company || '-'}</div>
-                                    <div className="text-xs text-gray-500 truncate">{lead.jobTitle || '-'}</div>
-                                </div>
-
-                                {/* Source */}
-                                <div>
-                                    <span className="inline-flex px-2 py-0.5 text-[10px] font-medium rounded text-gray-600 bg-gray-100">
-                                        {lead.source.replace('_', ' ')}
-                                    </span>
-                                </div>
-
-                                {/* Owner */}
-                                <div className="flex justify-center">
-                                    <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] font-bold">
-                                        MT
+                                    <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                                        {lead.status !== 'CONVERTED' && (
+                                            <button
+                                                onClick={() => openConvertModal(lead)}
+                                                className="px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 rounded-lg"
+                                            >
+                                                Convert
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => openEditModal(lead)}
+                                            className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg"
+                                        >
+                                            Edit
+                                        </button>
+                                        <button
+                                            onClick={() => openDeleteModal(lead)}
+                                            className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg"
+                                        >
+                                            Delete
+                                        </button>
                                     </div>
                                 </div>
                             </div>

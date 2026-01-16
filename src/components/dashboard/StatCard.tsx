@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { LucideIcon } from 'lucide-react';
+import Link from 'next/link';
 
 interface StatCardProps {
     title: string;
@@ -13,6 +14,7 @@ interface StatCardProps {
     icon: LucideIcon;
     iconColor?: string;
     delay?: number;
+    href?: string;
 }
 
 export default function StatCard({
@@ -22,8 +24,9 @@ export default function StatCard({
     icon: Icon,
     iconColor = '#007AFF',
     delay = 0,
+    href,
 }: StatCardProps) {
-    return (
+    const CardContent = (
         <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -36,7 +39,7 @@ export default function StatCard({
                 y: -2,
                 boxShadow: '0 12px 40px rgba(0, 0, 0, 0.08)',
             }}
-            className="glass-card rounded-3xl p-6 cursor-pointer transition-shadow duration-300"
+            className="glass-card rounded-3xl p-6 cursor-pointer transition-shadow duration-300 h-full"
         >
             {/* Header */}
             <div className="flex items-start justify-between mb-4">
@@ -82,4 +85,14 @@ export default function StatCard({
             <div className="mt-4 h-1 w-12 rounded-full opacity-60" style={{ backgroundColor: iconColor }} />
         </motion.div>
     );
+
+    if (href) {
+        return (
+            <Link href={href}>
+                {CardContent}
+            </Link>
+        );
+    }
+
+    return CardContent;
 }

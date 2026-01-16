@@ -18,6 +18,7 @@ model User {
   name      String
   avatar    String?
   role      Role     @default(USER)
+  preferences String? // JSON string for user preferences (e.g. dashboard layout)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -25,6 +26,7 @@ model User {
   leads      Lead[]
   contacts   Contact[]
   deals      Deal[]
+  salesDeals Deal[]   @relation("DealSalesTeam")
   activities Activity[]
 
   @@map("users")
@@ -129,6 +131,7 @@ model Deal {
   // Relations
   ownerId    String
   owner      User       @relation(fields: [ownerId], references: [id])
+  salesTeam  User[]     @relation("DealSalesTeam")
   contactId  String?
   contact    Contact?   @relation(fields: [contactId], references: [id])
   activities Activity[]
@@ -172,7 +175,7 @@ model Activity {
   contactId String?
   contact   Contact? @relation(fields: [contactId], references: [id])
   dealId    String?
-  deal      Deal?    @relation(fields: [dealId], references: [id])
+  deal      Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
   @@map("activities")
 }

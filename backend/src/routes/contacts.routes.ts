@@ -27,6 +27,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
             orderBy: { createdAt: 'desc' },
             include: {
                 _count: { select: { deals: true, activities: true } },
+                owner: { select: { id: true, name: true, email: true } },
             },
         });
 

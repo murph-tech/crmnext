@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { formatCurrency } from '@/lib/utils';
 import ActivityForm from '@/components/activities/ActivityForm';
 import Modal from '@/components/ui/Modal';
 
@@ -36,6 +37,12 @@ interface DealDetail {
         name: string;
         email: string;
     };
+    salesTeam?: {
+        id: string;
+        name: string;
+        email: string;
+        avatar?: string;
+    }[];
     activities: Activity[];
     items: any[];
     createdAt: string;
@@ -97,14 +104,58 @@ export default function DealDetailPage() {
     const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
     const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
+    const [showOwnerModal, setShowOwnerModal] = useState(false);
+    const [showTeamModal, setShowTeamModal] = useState(false);
+    const [users, setUsers] = useState<any[]>([]);
+
     useEffect(() => {
-        if (token && id) loadDeal();
+        if (token && id) {
+            loadDeal();
+            loadUsers();
+        }
     }, [token, id]);
+
+    const loadUsers = async () => {
+        try {
+            const data = await api.getUsers(token!);
+            setUsers(data);
+        } catch (error) {
+            console.error('Failed to load users:', error);
+        }
+    };
+
+    const handleUpdateOwner = async (newOwnerId: string) => {
+        if (!deal) return;
+        try {
+            await api.updateDeal(token!, deal.id, { ownerId: newOwnerId });
+            await loadDeal();
+            setShowOwnerModal(false);
+        } catch (error) {
+            console.error('Failed to update owner:', error);
+        }
+    };
+
+    const handleUpdateTeam = async (salesTeamIds: string[]) => {
+        if (!deal) return;
+        try {
+            await api.updateDeal(token!, deal.id, { salesTeamIds });
+            await loadDeal();
+            setShowTeamModal(false);
+        } catch (error) {
+            console.error('Failed to update sales team:', error);
+            // alert('Failed to update sales team');
+        }
+    };
 
     const loadDeal = async () => {
         try {
             const data = await api.getDeal(token!, id as string);
-            setDeal(data);
+            // Ensure data types match DealDetail
+            setDeal({
+                ...data,
+                activities: data.activities || [],
+                items: data.items || []
+            } as DealDetail);
         } catch (error) {
             console.error('Failed to load deal:', error);
         } finally {
@@ -247,18 +298,15 @@ export default function DealDetailPage() {
                                     {deal.contact.company}
                                 </span>
                             )}
-                            <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                                N/A
-                            </span>
-                            <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                                N/A
-                            </span>
                         </div>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                    <button
+                        onClick={() => router.back()}
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
                         <X size={20} className="text-gray-400" />
                     </button>
                 </div>
@@ -297,8 +345,6 @@ export default function DealDetailPage() {
             <div className="flex items-center gap-1 border-b border-gray-200 mb-6">
                 {[
                     { key: 'OVERVIEW', label: 'Overview', icon: FileText },
-                    { key: 'UPDATES', label: 'Updates', icon: MessageSquare },
-                    { key: 'MORE', label: 'More', icon: ChevronDown },
                 ].map((tab) => (
                     <button
                         key={tab.key}
@@ -312,9 +358,6 @@ export default function DealDetailPage() {
                         {tab.label}
                     </button>
                 ))}
-                <button className="ml-2 p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                    <Plus size={16} className="text-gray-400" />
-                </button>
             </div>
 
             <div className="grid grid-cols-12 gap-6">
@@ -444,13 +487,23 @@ export default function DealDetailPage() {
                                                             <div className="flex items-start justify-between">
                                                                 <div className="flex items-center gap-3">
                                                                     {/* User Avatar */}
-                                                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-medium text-sm">
-                                                                        {deal.contact?.company?.substring(0, 2) || 'UN'}
+                                                                    <div
+                                                                        className="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium text-xs border-2 border-white shadow-sm"
+                                                                        style={{ backgroundColor: activity.user?.name ? `hsl(${activity.user.name.charCodeAt(0) * 7 % 360}, 60%, 50%)` : '#94a3b8' }}
+                                                                        title={activity.user?.name || 'System'}
+                                                                    >
+                                                                        {activity.user?.name?.substring(0, 2).toUpperCase() || 'SY'}
                                                                     </div>
                                                                     <div>
-                                                                        <p className="font-medium text-gray-900">
-                                                                            {deal.contact?.company || 'Unknown Company'}
-                                                                        </p>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <p className="font-medium text-gray-900">
+                                                                                {deal.contact?.company || 'Unknown Company'}
+                                                                            </p>
+                                                                            <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                                                                                by {activity.user?.name || 'System'}
+                                                                            </span>
+                                                                        </div>
+
                                                                         <div className="flex items-center gap-2 text-sm text-gray-500 mt-0.5">
                                                                             {activity.duration && (
                                                                                 <>
@@ -683,11 +736,68 @@ export default function DealDetailPage() {
                             </div>
                             <div>
                                 <label className="block text-xs font-medium text-gray-500 mb-1">Owner</label>
-                                <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        if (user?.role === 'ADMIN' || user?.role === 'MANAGER') {
+                                            setShowOwnerModal(true);
+                                        }
+                                    }}
+                                    disabled={!(user?.role === 'ADMIN' || user?.role === 'MANAGER')}
+                                    className={`flex items-center gap-2 p-1 -ml-1 rounded-lg transition-colors group ${user?.role === 'ADMIN' || user?.role === 'MANAGER'
+                                        ? 'hover:bg-gray-50 cursor-pointer'
+                                        : 'cursor-not-allowed opacity-60'
+                                        }`}
+                                    title={!(user?.role === 'ADMIN' || user?.role === 'MANAGER') ? "Only Admin and Manager can change owner" : "Change Owner"}
+                                >
                                     <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center text-white text-xs font-medium">
-                                        {deal.owner?.name?.substring(0, 2) || user?.name?.substring(0, 2) || 'AD'}
+                                        {deal.owner?.name?.substring(0, 2) || 'UN'}
                                     </div>
-                                </div>
+                                    <span className={`text-sm font-medium transition-colors ${user?.role === 'ADMIN' || user?.role === 'MANAGER'
+                                        ? 'text-gray-900 group-hover:text-blue-600'
+                                        : 'text-gray-500'
+                                        }`}>
+                                        {deal.owner?.name || 'Unassigned'}
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-2">Sales Team</label>
+                            <div className="flex flex-wrap gap-2 items-center">
+                                {(deal.salesTeam || []).map(member => (
+                                    <div key={member.id} className="relative group">
+                                        <div
+                                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ring-2 ring-white shadow-sm"
+                                            style={{ backgroundColor: `hsl(${member.name.charCodeAt(0) * 7 % 360}, 60%, 50%)` }}
+                                            title={member.name}
+                                        >
+                                            {member.name.substring(0, 2).toUpperCase()}
+                                        </div>
+                                        {/* Remove Button for Manager/Admin */}
+                                        {(user?.role === 'ADMIN' || deal.owner?.id === user?.id) && (
+                                            <button
+                                                onClick={() => handleUpdateTeam((deal.salesTeam || []).filter(m => m.id !== member.id).map(m => m.id))}
+                                                className="absolute -top-1 -right-1 bg-white rounded-full text-red-500 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 p-0.5 border border-gray-100"
+                                            >
+                                                <X size={10} />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+
+                                {/* Add Button */}
+                                {(user?.role === 'ADMIN' || deal.owner?.id === user?.id) && (
+                                    <button
+                                        onClick={() => setShowTeamModal(true)}
+                                        className="w-8 h-8 rounded-full bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition-all"
+                                    >
+                                        <Plus size={16} />
+                                    </button>
+                                )}
+                                {(deal.salesTeam || []).length === 0 && (user?.role !== 'ADMIN' && deal.owner?.id !== user?.id) && (
+                                    <span className="text-xs text-gray-400 italic">No additional members</span>
+                                )}
                             </div>
                         </div>
 
@@ -695,7 +805,7 @@ export default function DealDetailPage() {
                             <div>
                                 <label className="block text-xs font-medium text-gray-500 mb-1">Deal Value</label>
                                 <p className="text-sm font-medium text-gray-900">
-                                    {new Intl.NumberFormat('th-TH', { style: 'currency', currency: deal.currency }).format(deal.value)}
+                                    {formatCurrency(deal.value, deal.currency)}
                                 </p>
                             </div>
                             <div>
@@ -735,9 +845,7 @@ export default function DealDetailPage() {
                             <div>
                                 <label className="block text-xs font-medium text-gray-500 mb-1">Forecast Value</label>
                                 <p className="text-sm font-medium text-gray-900">
-                                    {new Intl.NumberFormat('th-TH', { style: 'currency', currency: deal.currency }).format(
-                                        (deal.value * deal.probability) / 100
-                                    )}
+                                    {formatCurrency((deal.value * deal.probability) / 100, deal.currency)}
                                 </p>
                             </div>
                         </div>
@@ -825,6 +933,67 @@ export default function DealDetailPage() {
                     onSelect={handleAddItem}
                     onCancel={() => setShowProductModal(false)}
                 />
+            </Modal>
+
+            {/* Change Owner Modal */}
+            <Modal isOpen={showOwnerModal} onClose={() => setShowOwnerModal(false)} title="Change Deal Owner" size="sm">
+                <div className="space-y-4">
+                    <div className="grid gap-2">
+                        {users.map((u) => (
+                            <button
+                                key={u.id}
+                                onClick={() => handleUpdateOwner(u.id)}
+                                className={`flex items-center gap-3 p-3 rounded-xl transition-all ${deal?.owner?.id === u.id
+                                    ? 'bg-blue-50 border border-blue-200 shadow-sm'
+                                    : 'hover:bg-gray-50 border border-transparent'
+                                    }`}
+                            >
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-400 to-gray-600 flex items-center justify-center text-white text-xs font-medium">
+                                    {u.name?.substring(0, 2).toUpperCase()}
+                                </div>
+                                <div className="text-left">
+                                    <p className={`text-sm font-medium ${deal?.owner?.id === u.id ? 'text-blue-700' : 'text-gray-900'}`}>
+                                        {u.name}
+                                    </p>
+                                    <p className="text-xs text-gray-500">{u.email}</p>
+                                </div>
+                                {deal?.owner?.id === u.id && (
+                                    <CheckCircle2 size={16} className="ml-auto text-blue-600" />
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Sales Team Modal */}
+            <Modal isOpen={showTeamModal} onClose={() => setShowTeamModal(false)} title="Add Sales Team Member" size="sm">
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto p-1">
+                    <p className="text-sm text-gray-500">Select a user to add to the sales team for this deal.</p>
+                    <div className="grid gap-2">
+                        {users.filter(u => u.id !== deal.owner?.id && !(deal.salesTeam || []).some(m => m.id === u.id)).map((u) => (
+                            <button
+                                key={u.id}
+                                onClick={() => handleUpdateTeam([...(deal.salesTeam || []).map(m => m.id), u.id])}
+                                className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 border border-transparent transition-all text-left w-full group"
+                            >
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white text-xs font-medium">
+                                    {u.name?.substring(0, 2).toUpperCase()}
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-sm font-medium text-gray-900">{u.name}</p>
+                                    <p className="text-xs text-gray-500">{u.email}</p>
+                                </div>
+                                <Plus size={16} className="ml-auto text-gray-300 group-hover:text-blue-600 transition-colors" />
+                            </button>
+                        ))}
+                        {users.filter(u => u.id !== deal.owner?.id && !(deal.salesTeam || []).some(m => m.id === u.id)).length === 0 && (
+                            <div className="text-center py-6 text-gray-400 text-sm">
+                                All available users are already assigned.
+                            </div>
+                        )}
+                    </div>
+                </div>
             </Modal>
         </div>
     );

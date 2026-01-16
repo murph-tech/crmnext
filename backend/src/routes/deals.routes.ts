@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../index';
-import { authenticate, AuthRequest, getOwnerFilter } from '../middleware/auth.middleware';
+import { authenticate, AuthRequest, getOwnerFilter, getDealAccessFilter } from '../middleware/auth.middleware';
 
 const router = Router();
 
@@ -13,7 +13,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
 
         const deals = await prisma.deal.findMany({
             where: {
-                ...getOwnerFilter(req.user),
+                ...getDealAccessFilter(req.user),
                 ...(ownerId && req.user?.role === 'ADMIN' ? { ownerId: ownerId as string } : {}),
                 ...(stage && { stage: stage as any }),
             },
@@ -24,6 +24,9 @@ router.get('/', async (req: AuthRequest, res, next) => {
                 },
                 owner: {
                     select: { id: true, name: true, email: true },
+                },
+                salesTeam: {
+                    select: { id: true, name: true, email: true, avatar: true },
                 },
                 _count: { select: { activities: true } },
             },
@@ -45,7 +48,7 @@ router.get('/pipeline', async (req: AuthRequest, res, next) => {
             stages.map(async (stage) => {
                 const deals = await prisma.deal.findMany({
                     where: {
-                        ...getOwnerFilter(req.user),
+                        ...getDealAccessFilter(req.user),
                         stage: stage as any,
                         ...(search && {
                             OR: [
@@ -63,6 +66,13 @@ router.get('/pipeline', async (req: AuthRequest, res, next) => {
                         },
                         owner: {
                             select: { id: true, name: true, email: true },
+                        },
+                        salesTeam: {
+                            select: { id: true, name: true, email: true, avatar: true },
+                        },
+                        activities: {
+                            orderBy: { dueDate: 'asc' },
+                            take: 10
                         },
                     },
                 });
@@ -93,15 +103,18 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
         const deal = await prisma.deal.findUnique({
             where: {
                 id: req.params.id as string,
-                ...getOwnerFilter(req.user),
             },
             include: {
                 contact: true,
                 owner: {
                     select: { id: true, name: true, email: true },
                 },
+                salesTeam: {
+                    select: { id: true, name: true, email: true, avatar: true },
+                },
                 activities: {
                     orderBy: { createdAt: 'desc' },
+                    include: { user: { select: { name: true, email: true } } }
                 },
                 items: {
                     include: { product: true },
@@ -111,6 +124,18 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
 
         if (!deal) {
             return res.status(404).json({ error: 'Deal not found' });
+        }
+
+        // Custom Access Check since findUnique can't easy mix with OR filter in top level same way findMany does? 
+        // Actually it can if we used findFirst, but findUnique is better.
+        // Let's manually check access to be safe and precise.
+        const user = req.user;
+        const isOwner = deal.ownerId === user?.id;
+        const isSalesTeam = deal.salesTeam.some(m => m.id === user?.id);
+        const isAdmin = user?.role === 'ADMIN';
+
+        if (!isOwner && !isSalesTeam && !isAdmin) {
+            return res.status(403).json({ error: 'Not authorized to view this deal' });
         }
 
         res.json(deal);
@@ -219,20 +244,47 @@ router.post('/', async (req: AuthRequest, res, next) => {
 // Update deal
 router.put('/:id', async (req: AuthRequest, res, next) => {
     try {
-        const updated = await prisma.deal.updateMany({
+        const dealId = req.params.id as string;
+
+        // Check access first
+        const existingDeal = await prisma.deal.findFirst({
             where: {
-                id: req.params.id as string,
-                ...getOwnerFilter(req.user),
-            },
-            data: req.body,
+                id: dealId,
+                ...getDealAccessFilter(req.user),
+            }
         });
 
-        if (updated.count === 0) {
+        if (!existingDeal) {
             return res.status(404).json({ error: 'Deal not found' });
         }
 
-        const deal = await prisma.deal.findUnique({
-            where: { id: req.params.id as string },
+        const { salesTeamIds, ...otherData } = req.body;
+
+        // If updating salesTeam, verify USER is the Owner (Manager) or ADMIN
+        // The requester MUST be the owner or admin to add others.
+        if (salesTeamIds) {
+            const isOwner = existingDeal.ownerId === req.user!.id;
+            const isAdmin = req.user!.role === 'ADMIN';
+            if (!isOwner && !isAdmin) {
+                return res.status(403).json({ error: 'Only the Manager (Owner) can manage the Sales Team' });
+            }
+        }
+
+        const deal = await prisma.deal.update({
+            where: { id: dealId },
+            data: {
+                ...otherData,
+                ...(salesTeamIds && {
+                    salesTeam: {
+                        set: salesTeamIds.map((id: string) => ({ id })),
+                    }
+                })
+            },
+            include: {
+                contact: true,
+                owner: { select: { id: true, name: true, email: true } },
+                salesTeam: { select: { id: true, name: true, email: true, avatar: true } }
+            }
         });
 
         res.json(deal);
@@ -255,7 +307,7 @@ router.patch('/:id/stage', async (req: AuthRequest, res, next) => {
                 stage,
                 ...(stage === 'CLOSED_WON' || stage === 'CLOSED_LOST'
                     ? { closedAt: new Date() }
-                    : {}),
+                    : { closedAt: null }),
             },
         });
 
@@ -272,18 +324,80 @@ router.patch('/:id/stage', async (req: AuthRequest, res, next) => {
 // Delete deal
 router.delete('/:id', async (req: AuthRequest, res, next) => {
     try {
-        const deleted = await prisma.deal.deleteMany({
+        const deal = await prisma.deal.findFirst({
             where: {
                 id: req.params.id as string,
                 ...getOwnerFilter(req.user),
             },
         });
 
-        if (deleted.count === 0) {
+        if (!deal) {
             return res.status(404).json({ error: 'Deal not found' });
         }
 
+        await prisma.deal.delete({
+            where: { id: deal.id },
+        });
+
         res.json({ message: 'Deal deleted successfully' });
+    } catch (error) {
+        next(error);
+    }
+});
+
+import { stringify } from 'csv-stringify/sync';
+
+// ... existing code ...
+
+// Export deals to CSV
+router.get('/export/csv', async (req: AuthRequest, res, next) => {
+    try {
+        const { stage, ownerId } = req.query;
+
+        const deals = await prisma.deal.findMany({
+            where: {
+                ...getOwnerFilter(req.user),
+                ...(ownerId && req.user?.role === 'ADMIN' ? { ownerId: ownerId as string } : {}),
+                ...(stage && { stage: stage as any }),
+            },
+            orderBy: { createdAt: 'desc' },
+            include: {
+                contact: {
+                    select: { firstName: true, lastName: true, company: true, email: true, phone: true },
+                },
+                owner: {
+                    select: { name: true, email: true },
+                },
+            },
+        });
+
+        const csvData = deals.map(deal => ({
+            'Deal Name': deal.title,
+            Value: deal.value,
+            Currency: deal.currency,
+            Stage: deal.stage,
+            Probability: `${deal.probability}%`,
+            'Contact Name': deal.contact ? `${deal.contact.firstName} ${deal.contact.lastName}` : '',
+            Company: deal.contact?.company || '',
+            'Contact Email': deal.contact?.email || '',
+            'Contact Phone': deal.contact?.phone || '',
+            Owner: deal.owner?.name || '',
+            'Created At': new Date(deal.createdAt).toLocaleDateString(),
+            Notes: deal.notes || '',
+        }));
+
+        const output = stringify(csvData, {
+            header: true,
+            columns: [
+                'Deal Name', 'Value', 'Currency', 'Stage', 'Probability',
+                'Contact Name', 'Company', 'Contact Email', 'Contact Phone',
+                'Owner', 'Created At', 'Notes'
+            ]
+        });
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename=deals-export.csv');
+        res.send(output);
     } catch (error) {
         next(error);
     }

@@ -4,19 +4,17 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { formatCurrency } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import {
     User, Mail, Phone, Calendar, ArrowLeft, Loader2,
     Briefcase, Users, Contact
 } from 'lucide-react';
 
-interface UserDetail {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-    createdAt: string;
-    _count: {
+import { User as UserType } from '@/types';
+
+interface UserDetail extends UserType {
+    _count?: {
         deals: number;
         leads: number;
         contacts: number;
@@ -229,7 +227,7 @@ export default function UserPerformancePage() {
                                                     </span>
                                                 </td>
                                                 <td className="py-4 px-6 font-medium">
-                                                    {new Intl.NumberFormat('th-TH', { style: 'currency', currency: deal.currency || 'THB' }).format(deal.value)}
+                                                    {formatCurrency(deal.value, deal.currency || 'THB')}
                                                 </td>
                                                 <td className="py-4 px-6 text-gray-600">{deal.probability}%</td>
                                             </tr>

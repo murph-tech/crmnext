@@ -87,11 +87,11 @@ export default function ActivitiesPage() {
 
         // Process Groups
         Object.entries(groups).forEach(([dealId, groupList]) => {
-            // Sort: Latest date first (Descending)
+            // Sort: Latest created first (Descending)
             groupList.sort((a, b) => {
-                const dateA = a.dueDate ? new Date(a.dueDate).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-                const dateB = b.dueDate ? new Date(b.dueDate).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-                return dateB - dateA; // Descending: Latest first
+                const dateA = new Date(a.createdAt || 0).getTime();
+                const dateB = new Date(b.createdAt || 0).getTime();
+                return dateB - dateA;
             });
 
             finalDisplay.push({
@@ -102,11 +102,11 @@ export default function ActivitiesPage() {
             });
         });
 
-        // Global Sort (by Main Activity Date Descending)
+        // Global Sort (by Main Activity Created Date Descending)
         finalDisplay.sort((a, b) => {
-            const dateA = a.main.dueDate ? new Date(a.main.dueDate).getTime() : (a.main.createdAt ? new Date(a.main.createdAt).getTime() : 0);
-            const dateB = b.main.dueDate ? new Date(b.main.dueDate).getTime() : (b.main.createdAt ? new Date(b.main.createdAt).getTime() : 0);
-            return dateB - dateA; // Descending: Latest first
+            const dateA = new Date(a.main.createdAt || 0).getTime();
+            const dateB = new Date(b.main.createdAt || 0).getTime();
+            return dateB - dateA;
         });
 
         return finalDisplay;
@@ -189,100 +189,176 @@ export default function ActivitiesPage() {
         const companyName = activity.lead?.company || activity.contact?.company || activity.deal?.contact?.company;
 
         return (
-            <div key={activity.id} className={`group grid grid-cols-[40px_50px_2fr_1fr_1.5fr_1.5fr_100px_80px] gap-4 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors items-center text-sm ${activity.completed ? 'bg-gray-50/50' : ''} ${isSubItem ? 'bg-gray-50/30' : ''}`}>
-                <div className="flex justify-center">
-                    {isSubItem ? (
-                        <CornerDownRight size={14} className="text-gray-300 ml-auto" />
-                    ) : (
-                        <input type="checkbox" className="rounded border-gray-300 text-[#AF52DE] focus:ring-[#AF52DE]" />
-                    )}
-                </div>
-
-                {/* Type Icon */}
-                <div className="flex justify-center">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105" style={{ backgroundColor: `${color}15` }}>
-                        <Icon size={16} style={{ color }} />
+            <div key={activity.id} className={`group border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors ${activity.completed ? 'bg-gray-50/50' : ''} ${isSubItem ? 'bg-gray-50/30' : ''}`}>
+                {/* Desktop Row */}
+                <div className="hidden md:grid grid-cols-[40px_50px_2fr_1fr_1.5fr_1.5fr_100px_80px] gap-4 px-4 py-3 items-center text-sm">
+                    <div className="flex justify-center">
+                        {isSubItem ? (
+                            <CornerDownRight size={14} className="text-gray-300 ml-auto" />
+                        ) : (
+                            <input type="checkbox" className="rounded border-gray-300 text-[#AF52DE] focus:ring-[#AF52DE]" />
+                        )}
                     </div>
-                </div>
 
-                {/* Activity Title & Actions */}
-                <div className="flex items-center justify-between pr-4 min-w-0">
+                    {/* Type Icon */}
+                    <div className="flex justify-center">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105" style={{ backgroundColor: `${color}15` }}>
+                            <Icon size={16} style={{ color }} />
+                        </div>
+                    </div>
+
+                    {/* Activity Title & Actions */}
+                    <div className="flex items-center justify-between pr-4 min-w-0">
+                        <div className="truncate">
+                            <span className={`font-medium text-gray-900 block truncate ${activity.completed ? 'line-through text-gray-500' : ''}`}>{activity.title}</span>
+                            {activity.description && <span className="text-xs text-gray-500 truncate block">{activity.description}</span>}
+                        </div>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setSelectedActivity(activity); setShowEditModal(true); }}
+                                className="p-1 hover:bg-gray-200 rounded text-gray-500"
+                            >
+                                <Edit2 size={14} />
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setSelectedActivity(activity); setShowDeleteModal(true); }}
+                                className="p-1 hover:bg-red-50 rounded text-red-500"
+                            >
+                                <Trash2 size={14} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Due Date */}
+                    <div className={`${isOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                        {formatDate(activity.dueDate)}
+                    </div>
+
+                    {/* Related To */}
                     <div className="truncate">
-                        <span className={`font-medium text-gray-900 block truncate ${activity.completed ? 'line-through text-gray-500' : ''}`}>{activity.title}</span>
-                        {activity.description && <span className="text-xs text-gray-500 truncate block">{activity.description}</span>}
+                        {activity.lead && (
+                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs border border-blue-100 max-w-full truncate">
+                                <Users size={10} />
+                                <span className="truncate">{activity.lead.firstName} {activity.lead.lastName}</span>
+                            </div>
+                        )}
+                        {activity.deal && (
+                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs border border-green-100 max-w-full truncate">
+                                <FileText size={10} />
+                                <span className="truncate">{activity.deal.title}</span>
+                                {/* !isSubItem check removed because we want to see deal tag even in grouped view if it's the main item, or maybe context is clear */}
+                            </div>
+                        )}
+                        {!activity.lead && !activity.deal && !activity.contact && (
+                            <span className="text-gray-400 text-xs italic">-</span>
+                        )}
                     </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0">
+
+                    {/* Company */}
+                    <div className="truncate text-gray-600">
+                        {companyName ? (
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-gray-500 text-[10px] font-bold">
+                                    {companyName.substring(0, 1)}
+                                </div>
+                                <span className="truncate">{companyName}</span>
+                            </div>
+                        ) : (
+                            <span className="text-gray-400 text-xs italic">-</span>
+                        )}
+                    </div>
+
+                    {/* Status Toggle */}
+                    <div className="flex justify-center">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handleToggleComplete(activity); }}
+                            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${activity.completed
+                                ? 'bg-green-500 border-green-500 text-white'
+                                : 'border-gray-300 hover:border-[#AF52DE] text-transparent'
+                                }`}
+                        >
+                            <CheckCircle2 size={14} />
+                        </button>
+                    </div>
+
+                    {/* Owner */}
+                    <div className="flex justify-center">
+                        <div
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                            style={{
+                                backgroundColor: (activity as any).user?.name
+                                    ? `hsl(${(activity as any).user.name.charCodeAt(0) * 7 % 360}, 60%, 50%)`
+                                    : '#6B7280'
+                            }}
+                            title={(activity as any).user?.name || 'Unknown'}
+                        >
+                            {(activity as any).user?.name
+                                ? (activity as any).user.name.substring(0, 2).toUpperCase()
+                                : 'NA'}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden p-4 space-y-3">
+                    <div className="flex gap-3">
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${color}15` }}>
+                            <Icon size={18} style={{ color }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start">
+                                <h3 className={`font-medium text-gray-900 truncate ${activity.completed ? 'line-through text-gray-500' : ''}`}>{activity.title}</h3>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleToggleComplete(activity); }}
+                                    className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${activity.completed
+                                        ? 'bg-green-500 border-green-500 text-white'
+                                        : 'border-gray-300 hover:border-[#AF52DE] text-transparent'
+                                        }`}
+                                >
+                                    <CheckCircle2 size={12} />
+                                </button>
+                            </div>
+                            <p className={`${isOverdue ? 'text-red-600 font-medium' : 'text-gray-500'} text-xs mt-0.5`}>
+                                {formatDate(activity.dueDate)}
+                            </p>
+                        </div>
+                    </div>
+
+                    {(activity.lead || activity.deal || companyName) && (
+                        <div className="flex flex-wrap gap-2 text-xs">
+                            {activity.lead && (
+                                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-100">
+                                    <Users size={10} />
+                                    <span>{activity.lead.firstName} {activity.lead.lastName}</span>
+                                </div>
+                            )}
+                            {activity.deal && (
+                                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-700 rounded border border-green-100">
+                                    <FileText size={10} />
+                                    <span>{activity.deal.title}</span>
+                                </div>
+                            )}
+                            {companyName && (
+                                <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-gray-100 text-gray-600 rounded">
+                                    <span>{companyName}</span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
                         <button
                             onClick={(e) => { e.stopPropagation(); setSelectedActivity(activity); setShowEditModal(true); }}
-                            className="p-1 hover:bg-gray-200 rounded text-gray-500"
+                            className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg"
                         >
-                            <Edit2 size={14} />
+                            Edit
                         </button>
                         <button
                             onClick={(e) => { e.stopPropagation(); setSelectedActivity(activity); setShowDeleteModal(true); }}
-                            className="p-1 hover:bg-red-50 rounded text-red-500"
+                            className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg"
                         >
-                            <Trash2 size={14} />
+                            Delete
                         </button>
-                    </div>
-                </div>
-
-                {/* Due Date */}
-                <div className={`${isOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
-                    {formatDate(activity.dueDate)}
-                </div>
-
-                {/* Related To */}
-                <div className="truncate">
-                    {activity.lead && (
-                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs border border-blue-100 max-w-full truncate">
-                            <Users size={10} />
-                            <span className="truncate">{activity.lead.firstName} {activity.lead.lastName}</span>
-                        </div>
-                    )}
-                    {activity.deal && (
-                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs border border-green-100 max-w-full truncate">
-                            <FileText size={10} />
-                            <span className="truncate">{activity.deal.title}</span>
-                            {/* !isSubItem check removed because we want to see deal tag even in grouped view if it's the main item, or maybe context is clear */}
-                        </div>
-                    )}
-                    {!activity.lead && !activity.deal && !activity.contact && (
-                        <span className="text-gray-400 text-xs italic">-</span>
-                    )}
-                </div>
-
-                {/* Company */}
-                <div className="truncate text-gray-600">
-                    {companyName ? (
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-gray-500 text-[10px] font-bold">
-                                {companyName.substring(0, 1)}
-                            </div>
-                            <span className="truncate">{companyName}</span>
-                        </div>
-                    ) : (
-                        <span className="text-gray-400 text-xs italic">-</span>
-                    )}
-                </div>
-
-                {/* Status Toggle */}
-                <div className="flex justify-center">
-                    <button
-                        onClick={(e) => { e.stopPropagation(); handleToggleComplete(activity); }}
-                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${activity.completed
-                            ? 'bg-green-500 border-green-500 text-white'
-                            : 'border-gray-300 hover:border-[#AF52DE] text-transparent'
-                            }`}
-                    >
-                        <CheckCircle2 size={14} />
-                    </button>
-                </div>
-
-                {/* Owner */}
-                <div className="flex justify-center">
-                    <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] font-bold">
-                        MT
                     </div>
                 </div>
             </div>
@@ -328,10 +404,10 @@ export default function ActivitiesPage() {
                 </div>
             </motion.div>
 
-            {/* Activities Table */}
+            {/* Activities List */}
             <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex-1 flex flex-col">
-                {/* Table Header */}
-                <div className="grid grid-cols-[40px_50px_2fr_1fr_1.5fr_1.5fr_100px_80px] gap-4 px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider items-center">
+                {/* Desktop Table Header */}
+                <div className="hidden md:grid grid-cols-[40px_50px_2fr_1fr_1.5fr_1.5fr_100px_80px] gap-4 px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider items-center">
                     <div className="flex justify-center">
                         <input type="checkbox" className="rounded border-gray-300 text-[#AF52DE] focus:ring-[#AF52DE]" />
                     </div>

@@ -4,6 +4,9 @@ export interface User {
     name: string;
     role: 'ADMIN' | 'USER' | 'MANAGER';
     avatar?: string;
+    preferences?: string | null;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface AuthResponse {
@@ -29,6 +32,9 @@ export interface Lead {
     email: string;
     phone?: string;
     company?: string;
+    jobTitle?: string;
+    taxId?: string;
+    address?: string;
     status: string; // e.g., 'NEW', 'CONTACTED', 'QUALIFIED', 'LOST', 'CONVERTED'
     source?: string;
     notes?: string;
@@ -62,12 +68,16 @@ export interface Deal {
     id: string;
     title: string;
     value: number;
+    currency: string;
+    ownerId?: string;
+    owner?: User;
     stage: string; // e.g., 'PROSPECTING', 'QUALIFICATION', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON', 'CLOSED_LOST'
     probability: number;
     expectedCloseDate?: string;
     contactId?: string;
     contact?: Contact;
     items?: DealItem[];
+    activities?: Activity[];
     notes?: string;
     createdAt: string;
     updatedAt: string;
@@ -106,6 +116,8 @@ export interface Product {
     price: number;
     sku?: string;
     category?: string;
+    type: 'INVENTORY' | 'SERVICE';
+    isActive: boolean;
     createdAt: string;
     updatedAt: string;
 }

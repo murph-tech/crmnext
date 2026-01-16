@@ -2,14 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { api } from '@/lib/api';
-
-interface User {
-    id: string;
-    email: string;
-    name: string;
-    role: string;
-    avatar?: string;
-}
+import { User } from '@/types';
 
 interface AuthContextType {
     user: User | null;
@@ -19,6 +12,7 @@ interface AuthContextType {
     logout: () => void;
     isAuthenticated: boolean;
     refreshUser: () => Promise<void>;
+    updateProfile: (data: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -107,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 document.removeEventListener(event, resetTimer);
             });
         };
-    }, [token]);
+    }, [token, logout]);
 
     const login = async (email: string, password: string) => {
         const response = await api.login(email, password);
@@ -129,6 +123,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    const updateProfile = async (data: Partial<User>) => {
+        if (!token) return;
+        try {
+            const updatedUser = await api.updateProfile(token, data);
+            setUser(updatedUser);
+            localStorage.setItem('crm_user', JSON.stringify(updatedUser));
+        } catch (error) {
+            console.error('Failed to update profile:', error);
+            throw error;
+        }
+    };
+
     return (
         <AuthContext.Provider
             value={{
@@ -139,6 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 logout,
                 isAuthenticated: !!token,
                 refreshUser,
+                updateProfile,
             }}
         >
             {children}
@@ -153,3 +160,4 @@ export function useAuth() {
     }
     return context;
 }
+

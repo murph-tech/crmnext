@@ -5,9 +5,8 @@ import { authenticate, authorize, AuthRequest } from '../middleware/auth.middlew
 
 const router = Router();
 
-// All routes require authentication and ADMIN role
+// All routes require authentication
 router.use(authenticate);
-router.use(authorize('ADMIN'));
 
 // Get all users
 router.get('/', async (req: AuthRequest, res, next) => {
@@ -73,7 +72,8 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
 });
 
 // Create user
-router.post('/', async (req: AuthRequest, res, next) => {
+// Create user (Admin only)
+router.post('/', authorize('ADMIN'), async (req: AuthRequest, res, next) => {
     try {
         const { email, password, name, role } = req.body;
 
@@ -118,7 +118,8 @@ router.post('/', async (req: AuthRequest, res, next) => {
 });
 
 // Update user
-router.put('/:id', async (req: AuthRequest, res, next) => {
+// Update user (Admin only)
+router.put('/:id', authorize('ADMIN'), async (req: AuthRequest, res, next) => {
     try {
         const { email, name, role, password } = req.body;
         const userId = String(req.params.id);
@@ -173,7 +174,8 @@ router.put('/:id', async (req: AuthRequest, res, next) => {
 });
 
 // Delete user
-router.delete('/:id', async (req: AuthRequest, res, next) => {
+// Delete user (Admin only)
+router.delete('/:id', authorize('ADMIN'), async (req: AuthRequest, res, next) => {
     try {
         const userId = String(req.params.id);
 

@@ -5,17 +5,10 @@ import { motion } from 'framer-motion';
 import { Package, Plus, Search, Filter, Edit2, Trash2, Tag, Archive, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { formatCurrency } from '@/lib/utils';
 import Modal from '@/components/ui/Modal';
 
-interface Product {
-    id: string;
-    name: string;
-    description?: string;
-    sku?: string;
-    price: number;
-    type: 'INVENTORY' | 'SERVICE';
-    isActive: boolean;
-}
+import { Product } from '@/types';
 
 export default function ProductsPage() {
     const { token, user } = useAuth();
@@ -79,7 +72,11 @@ export default function ProductsPage() {
         e.preventDefault();
         setIsSubmitting(true);
         try {
-            await api.createProduct(token!, formData);
+            await api.createProduct(token!, {
+                ...formData,
+                price: parseFloat(formData.price),
+                type: formData.type as 'INVENTORY' | 'SERVICE'
+            });
             await loadProducts();
             setShowAddModal(false);
             resetForm();
@@ -95,7 +92,11 @@ export default function ProductsPage() {
         if (!selectedProduct) return;
         setIsSubmitting(true);
         try {
-            await api.updateProduct(token!, selectedProduct.id, formData);
+            await api.updateProduct(token!, selectedProduct.id, {
+                ...formData,
+                price: parseFloat(formData.price),
+                type: formData.type as 'INVENTORY' | 'SERVICE'
+            });
             await loadProducts();
             setShowEditModal(false);
             setSelectedProduct(null);
@@ -135,12 +136,7 @@ export default function ProductsPage() {
         setShowEditModal(true);
     };
 
-    const formatCurrency = (value: number) => {
-        return new Intl.NumberFormat('th-TH', {
-            style: 'currency',
-            currency: 'THB',
-        }).format(value);
-    };
+
 
 
 
@@ -192,7 +188,7 @@ export default function ProductsPage() {
                                                     description: item.description || item.Description,
                                                     sku: item.sku || item.Sku || item.SKU,
                                                     price: parseFloat(item.price || item.Price || '0'),
-                                                    type: productType === 'INVENTORY' ? 'INVENTORY' : 'SERVICE',
+                                                    type: (productType === 'INVENTORY' ? 'INVENTORY' : 'SERVICE') as 'INVENTORY' | 'SERVICE',
                                                     isActive: true
                                                 };
 
@@ -270,10 +266,10 @@ export default function ProductsPage() {
                 </div>
             </motion.div>
 
-            {/* Products Table */}
+            {/* Products List */}
             <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex-1 flex flex-col">
-                {/* Table Header */}
-                <div className="grid grid-cols-[40px_2fr_120px_1fr_1fr_100px_80px] gap-4 px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider items-center">
+                {/* Desktop Table Header */}
+                <div className="hidden md:grid grid-cols-[40px_2fr_120px_1fr_1fr_100px_80px] gap-4 px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider items-center">
                     <div className="flex justify-center">
                         <input type="checkbox" className="rounded border-gray-300 text-[#FF9500] focus:ring-[#FF9500]" />
                     </div>
@@ -285,7 +281,7 @@ export default function ProductsPage() {
                     <div>Action</div>
                 </div>
 
-                {/* Table Body */}
+                {/* List Body */}
                 <div className="overflow-y-auto flex-1">
                     {filteredProducts.length === 0 ? (
                         <div className="text-center py-16 text-gray-400">
@@ -295,68 +291,120 @@ export default function ProductsPage() {
                         </div>
                     ) : (
                         filteredProducts.map((product, index) => (
-                            <div key={product.id} className={`group grid grid-cols-[40px_2fr_120px_1fr_1fr_100px_80px] gap-4 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors items-center text-sm ${!product.isActive ? 'opacity-60 bg-gray-50' : ''}`}>
-                                <div className="flex justify-center">
-                                    <input type="checkbox" className="rounded border-gray-300 text-[#FF9500] focus:ring-[#FF9500]" />
-                                </div>
-
-                                {/* Name & Icon */}
-                                <div className="flex items-center gap-3 min-w-0 pr-4">
-                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${product.type === 'SERVICE' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
-                                        {product.type === 'SERVICE' ? <Tag size={16} /> : <Archive size={16} />}
+                            <div key={product.id} className={`group border-b border-gray-100 hover:bg-gray-50 transition-colors ${!product.isActive ? 'opacity-60 bg-gray-50' : ''}`}>
+                                {/* Desktop Row */}
+                                <div className="hidden md:grid grid-cols-[40px_2fr_120px_1fr_1fr_100px_80px] gap-4 px-4 py-3 items-center text-sm">
+                                    <div className="flex justify-center">
+                                        <input type="checkbox" className="rounded border-gray-300 text-[#FF9500] focus:ring-[#FF9500]" />
                                     </div>
-                                    <div className="truncate">
-                                        <span className="font-medium text-gray-900 block truncate">{product.name}</span>
-                                        {product.description && <span className="text-xs text-gray-500 truncate block">{product.description}</span>}
+
+                                    {/* Name & Icon */}
+                                    <div className="flex items-center gap-3 min-w-0 pr-4">
+                                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${product.type === 'SERVICE' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                                            {product.type === 'SERVICE' ? <Tag size={16} /> : <Archive size={16} />}
+                                        </div>
+                                        <div className="truncate">
+                                            <span className="font-medium text-gray-900 block truncate">{product.name}</span>
+                                            {product.description && <span className="text-xs text-gray-500 truncate block">{product.description}</span>}
+                                        </div>
+                                    </div>
+
+                                    {/* Type */}
+                                    <div className="text-center">
+                                        <span className={`inline-flex px-2 py-0.5 text-[10px] font-medium rounded-full ${product.type === 'SERVICE' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                                            {product.type}
+                                        </span>
+                                    </div>
+
+                                    {/* SKU */}
+                                    <div className="truncate text-gray-500 font-mono text-xs">
+                                        {product.sku || '-'}
+                                    </div>
+
+                                    {/* Price */}
+                                    <div className="text-right font-medium text-gray-900">
+                                        {formatCurrency(product.price)}
+                                    </div>
+
+                                    {/* Status */}
+                                    <div className="text-center">
+                                        {product.isActive ? (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700">
+                                                Active
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
+                                                Inactive
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {/* Actions */}
+                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); openEditModal(product); }}
+                                            className="p-1.5 hover:bg-gray-200 rounded text-gray-500"
+                                            title="Edit"
+                                        >
+                                            <Edit2 size={14} />
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setSelectedProduct(product); setShowDeleteModal(true); }}
+                                            className="p-1.5 hover:bg-red-50 rounded text-red-500"
+                                            title="Delete"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
                                     </div>
                                 </div>
 
-                                {/* Type */}
-                                <div className="text-center">
-                                    <span className={`inline-flex px-2 py-0.5 text-[10px] font-medium rounded-full ${product.type === 'SERVICE' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
-                                        {product.type}
-                                    </span>
-                                </div>
-
-                                {/* SKU */}
-                                <div className="truncate text-gray-500 font-mono text-xs">
-                                    {product.sku || '-'}
-                                </div>
-
-                                {/* Price */}
-                                <div className="text-right font-medium text-gray-900">
-                                    {formatCurrency(product.price)}
-                                </div>
-
-                                {/* Status */}
-                                <div className="text-center">
-                                    {product.isActive ? (
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700">
-                                            Active
+                                {/* Mobile Card View */}
+                                <div className="md:hidden p-4 space-y-3">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${product.type === 'SERVICE' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                                                {product.type === 'SERVICE' ? <Tag size={18} /> : <Archive size={18} />}
+                                            </div>
+                                            <div>
+                                                <h3 className="font-medium text-gray-900">{product.name}</h3>
+                                                <p className="text-xs text-gray-500">{product.sku || 'No SKU'}</p>
+                                            </div>
+                                        </div>
+                                        <span className="font-semibold text-gray-900">
+                                            {formatCurrency(product.price)}
                                         </span>
-                                    ) : (
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
-                                            Inactive
-                                        </span>
-                                    )}
-                                </div>
+                                    </div>
 
-                                {/* Actions */}
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); openEditModal(product); }}
-                                        className="p-1.5 hover:bg-gray-200 rounded text-gray-500"
-                                        title="Edit"
-                                    >
-                                        <Edit2 size={14} />
-                                    </button>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setSelectedProduct(product); setShowDeleteModal(true); }}
-                                        className="p-1.5 hover:bg-red-50 rounded text-red-500"
-                                        title="Delete"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
+                                    <div className="flex items-center justify-between text-xs pt-2 border-t border-gray-100">
+                                        <div className="flex gap-2">
+                                            <span className={`inline-flex px-2 py-0.5 text-[10px] font-medium rounded-full ${product.type === 'SERVICE' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                                                {product.type}
+                                            </span>
+                                            {product.isActive ? (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700">
+                                                    Active
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
+                                                    Inactive
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => openEditModal(product)}
+                                                className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => { setSelectedProduct(product); setShowDeleteModal(true); }}
+                                                className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         ))

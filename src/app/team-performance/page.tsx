@@ -101,10 +101,10 @@ export default function TeamPerformancePage() {
                 </div>
             </motion.div>
 
-            {/* Performance Table */}
+            {/* Performance List */}
             <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex-1 flex flex-col">
-                {/* Table Header */}
-                <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_40px] gap-4 px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider items-center">
+                {/* Desktop Table Header */}
+                <div className="hidden md:grid grid-cols-[1.5fr_1fr_1fr_1fr_40px] gap-4 px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider items-center">
                     <div>Salesperson</div>
                     <div className="text-center">Deals Won</div>
                     <div className="text-center">Active Leads</div>
@@ -112,7 +112,7 @@ export default function TeamPerformancePage() {
                     <div></div>
                 </div>
 
-                {/* Table Body */}
+                {/* List Body */}
                 <div className="overflow-y-auto flex-1">
                     {filteredData.length === 0 ? (
                         <div className="text-center py-16 text-gray-400">
@@ -124,52 +124,91 @@ export default function TeamPerformancePage() {
                             <div
                                 key={item.id}
                                 onClick={() => router.push(`/team-performance/${item.id}`)}
-                                className="group grid grid-cols-[1.5fr_1fr_1fr_1fr_40px] gap-4 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors items-center text-sm cursor-pointer"
+                                className="group border-b border-gray-100 items-center hover:bg-gray-50 transition-colors cursor-pointer"
                             >
-                                {/* Salesperson Info */}
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600">
-                                        {item.name?.charAt(0) || 'U'}
-                                    </div>
-                                    <div className="min-w-0">
-                                        <div className="font-medium text-gray-900 group-hover:text-[#007AFF] transition-colors flex items-center gap-2">
-                                            {item.name}
-                                            {index === 0 && !searchQuery && (
-                                                <span className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] font-bold rounded-full">
-                                                    <Trophy size={10} /> Rank 1
-                                                </span>
-                                            )}
+                                {/* Desktop Row */}
+                                <div className="hidden md:grid grid-cols-[1.5fr_1fr_1fr_1fr_40px] gap-4 px-4 py-3 items-center text-sm">
+                                    {/* Salesperson Info */}
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600">
+                                            {item.name?.charAt(0) || 'U'}
                                         </div>
-                                        <div className="text-xs text-gray-500 truncate">{item.email}</div>
+                                        <div className="min-w-0">
+                                            <div className="font-medium text-gray-900 group-hover:text-[#007AFF] transition-colors flex items-center gap-2">
+                                                {item.name}
+                                                {index === 0 && !searchQuery && (
+                                                    <span className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] font-bold rounded-full">
+                                                        <Trophy size={10} /> Rank 1
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="text-xs text-gray-500 truncate">{item.email}</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Deals */}
+                                    <div className="text-center">
+                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                                            {item.deals} Deals
+                                        </span>
+                                    </div>
+
+                                    {/* Leads */}
+                                    <div className="text-center text-gray-600">
+                                        <div className="flex items-center justify-center gap-1.5">
+                                            <Target size={14} className="text-gray-400" />
+                                            <span>{item.leads}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Contacts */}
+                                    <div className="text-center text-gray-600">
+                                        <div className="flex items-center justify-center gap-1.5">
+                                            <Users size={14} className="text-gray-400" />
+                                            <span>{item.contacts}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Action */}
+                                    <div className="text-right">
+                                        <ChevronRight size={16} className="text-gray-400 group-hover:text-[#007AFF] transition-colors ml-auto" />
                                     </div>
                                 </div>
 
-                                {/* Deals */}
-                                <div className="text-center">
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                                        {item.deals} Deals
-                                    </span>
-                                </div>
-
-                                {/* Leads */}
-                                <div className="text-center text-gray-600">
-                                    <div className="flex items-center justify-center gap-1.5">
-                                        <Target size={14} className="text-gray-400" />
-                                        <span>{item.leads}</span>
+                                {/* Mobile Card View */}
+                                <div className="md:hidden p-4 space-y-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-sm font-bold text-indigo-600 flex-shrink-0">
+                                            {item.name?.charAt(0) || 'U'}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="font-medium text-gray-900 group-hover:text-[#007AFF] transition-colors flex items-center gap-2">
+                                                {item.name}
+                                                {index === 0 && !searchQuery && (
+                                                    <span className="flex items-center gap-1 px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-[10px] font-bold rounded-full">
+                                                        <Trophy size={10} /> #1
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="text-xs text-gray-500 truncate">{item.email}</div>
+                                        </div>
+                                        <ChevronRight size={16} className="text-gray-400" />
                                     </div>
-                                </div>
 
-                                {/* Contacts */}
-                                <div className="text-center text-gray-600">
-                                    <div className="flex items-center justify-center gap-1.5">
-                                        <Users size={14} className="text-gray-400" />
-                                        <span>{item.contacts}</span>
+                                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-100">
+                                        <div className="text-center p-2 bg-blue-50/50 rounded-lg">
+                                            <div className="text-lg font-bold text-blue-600">{item.deals}</div>
+                                            <div className="text-[10px] text-gray-500">Deals</div>
+                                        </div>
+                                        <div className="text-center p-2 bg-gray-50 rounded-lg">
+                                            <div className="text-lg font-bold text-gray-700">{item.leads}</div>
+                                            <div className="text-[10px] text-gray-500">Leads</div>
+                                        </div>
+                                        <div className="text-center p-2 bg-gray-50 rounded-lg">
+                                            <div className="text-lg font-bold text-gray-700">{item.contacts}</div>
+                                            <div className="text-[10px] text-gray-500">Contacts</div>
+                                        </div>
                                     </div>
-                                </div>
-
-                                {/* Action */}
-                                <div className="text-right">
-                                    <ChevronRight size={16} className="text-gray-400 group-hover:text-[#007AFF] transition-colors ml-auto" />
                                 </div>
                             </div>
                         ))

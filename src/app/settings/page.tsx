@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Settings, User, Bell, Shield, Palette, X, Loader2, Save, Key, Mail, Lock, Link, Server, CheckCircle2, AlertCircle, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 const settingsSections = [
     { id: 'profile', icon: User, label: 'Profile', desc: 'Manage your account details' },
@@ -19,7 +19,16 @@ const settingsSections = [
 export default function SettingsPage() {
     const { user, token, refreshUser } = useAuth();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [activeModal, setActiveModal] = useState<string | null>(null);
+
+    // Check for query param to open specific section
+    useEffect(() => {
+        const section = searchParams.get('section');
+        if (section && settingsSections.some(s => s.id === section)) {
+            setActiveModal(section);
+        }
+    }, [searchParams]);
 
     // Profile Form State
     const [profileForm, setProfileForm] = useState({ name: '', email: '' });

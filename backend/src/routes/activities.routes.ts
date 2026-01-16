@@ -31,6 +31,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
                         contact: { select: { company: true } }
                     }
                 },
+                user: { select: { name: true, email: true } },
             },
         });
 
@@ -63,6 +64,7 @@ router.get('/upcoming', async (req: AuthRequest, res, next) => {
                         contact: { select: { company: true } }
                     }
                 },
+                user: { select: { name: true, email: true } },
             },
         });
 

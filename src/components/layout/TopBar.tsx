@@ -2,16 +2,20 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Command, Bell, ChevronDown } from 'lucide-react';
+import { Search, Command, Bell, ChevronDown, Menu } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { useRouter } from 'next/navigation';
 
 interface TopBarProps {
     sidebarCollapsed: boolean;
+    onMobileMenuToggle?: () => void;
+    isMobile?: boolean;
 }
 
-export default function TopBar({ sidebarCollapsed }: TopBarProps) {
+export default function TopBar({ sidebarCollapsed, onMobileMenuToggle, isMobile }: TopBarProps) {
     const { user, logout, token } = useAuth();
+    const router = useRouter();
     const [searchFocused, setSearchFocused] = useState(false);
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
@@ -91,19 +95,44 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
         window.location.href = '/login';
     };
 
+    const handleProfileMenuClick = (action: string) => {
+        setShowProfileMenu(false);
+        switch (action) {
+            case 'Profile Settings':
+                router.push('/settings?section=profile');
+                break;
+            case 'Preferences':
+                router.push('/settings?section=appearance');
+                break;
+            case 'Help & Support':
+                // For now, just a placeholder or navigate to a help page
+                router.push('/settings'); // directing to settings for now as valid page
+                break;
+        }
+    };
+
     return (
         <motion.header
             initial={false}
             animate={{
-                marginLeft: sidebarCollapsed ? 72 : 260,
+                marginLeft: isMobile ? 0 : (sidebarCollapsed ? 72 : 260),
             }}
             transition={{
                 duration: 0.3,
                 ease: [0.4, 0, 0.2, 1],
             }}
-            className="fixed top-0 right-0 h-16 z-50 glass-topbar flex items-center justify-between px-6"
+            className="fixed top-0 right-0 h-16 z-50 glass-topbar flex items-center justify-between px-4 sm:px-6"
             style={{ left: 0 }}
         >
+            {isMobile && (
+                <button
+                    onClick={onMobileMenuToggle}
+                    className="p-2 -ml-2 mr-2 text-gray-500 hover:bg-gray-100 rounded-lg lg:hidden"
+                >
+                    <Menu size={20} />
+                </button>
+            )}
+
             {/* Spotlight Search */}
             <div className="flex-1 max-w-xl">
                 <motion.div
@@ -127,7 +156,7 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
                     />
 
                     {/* Keyboard shortcut hint */}
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:flex items-center gap-1 pointer-events-none">
                         <kbd className="flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 bg-gray-100 rounded border border-gray-200">
                             <Command size={10} />
                             <span>K</span>
@@ -137,7 +166,7 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
             </div>
 
             {/* Right Section */}
-            <div className="flex items-center gap-3 ml-6">
+            <div className={`flex items-center gap-2 sm:gap-3 ${isMobile ? 'ml-2' : 'ml-6'}`}>
                 {/* Notifications */}
                 <div ref={notificationMenuRef} className="relative">
                     <motion.button
@@ -217,9 +246,9 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: 8, scale: 0.96 }}
                                 transition={{ duration: 0.15 }}
-                                className="absolute right-0 mt-2 w-56 py-2 glass rounded-2xl shadow-lg overflow-hidden"
+                                className="absolute right-0 mt-2 w-56 py-2 glass rounded-2xl shadow-lg overflow-hidden border border-gray-100"
                             >
-                                <div className="px-4 py-3 border-b border-black/[0.06]">
+                                <div className="px-4 py-3 border-b border-gray-100">
                                     <p className="text-sm font-medium text-gray-800">{user?.name}</p>
                                     <p className="text-xs text-gray-500">{user?.email}</p>
                                 </div>
@@ -227,13 +256,14 @@ export default function TopBar({ sidebarCollapsed }: TopBarProps) {
                                     {['Profile Settings', 'Preferences', 'Help & Support'].map((item) => (
                                         <button
                                             key={item}
-                                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-black/[0.04] transition-colors duration-150"
+                                            onClick={() => handleProfileMenuClick(item)}
+                                            className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150"
                                         >
                                             {item}
                                         </button>
                                     ))}
                                 </div>
-                                <div className="border-t border-black/[0.06] pt-1 mt-1">
+                                <div className="border-t border-gray-100 pt-1 mt-1">
                                     <button
                                         onClick={handleLogout}
                                         className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors duration-150"

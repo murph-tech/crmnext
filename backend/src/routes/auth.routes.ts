@@ -86,6 +86,7 @@ router.post('/login', async (req, res, next) => {
                 name: user.name,
                 role: user.role,
                 avatar: user.avatar,
+                preferences: user.preferences,
             },
             token,
         });
@@ -105,6 +106,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res, next) => {
                 name: true,
                 role: true,
                 avatar: true,
+                preferences: true,
                 createdAt: true,
             },
         });
@@ -142,6 +144,7 @@ router.put('/me', authenticate, async (req: AuthRequest, res, next) => {
             data: {
                 ...(name && { name }),
                 ...(email && { email }),
+                ...(req.body.preferences !== undefined && { preferences: req.body.preferences }),
             },
             select: {
                 id: true,
@@ -149,6 +152,7 @@ router.put('/me', authenticate, async (req: AuthRequest, res, next) => {
                 name: true,
                 role: true,
                 avatar: true,
+                preferences: true,
                 createdAt: true,
             },
         });

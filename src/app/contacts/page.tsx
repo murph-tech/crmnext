@@ -265,10 +265,10 @@ export default function ContactsPage() {
                 </div>
             </motion.div>
 
-            {/* Contacts Table */}
+            {/* Contacts List */}
             <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex-1 flex flex-col">
-                {/* Table Header */}
-                <div className="grid grid-cols-[40px_1.5fr_1.5fr_1fr_1.2fr_1fr_100px] gap-4 px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider items-center">
+                {/* Desktop Table Header */}
+                <div className="hidden md:grid grid-cols-[40px_1.5fr_1.5fr_1fr_1.2fr_1fr_100px_100px] gap-4 px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider items-center">
                     <div className="flex justify-center">
                         <input type="checkbox" className="rounded border-gray-300 text-[#AF52DE] focus:ring-[#AF52DE]" />
                     </div>
@@ -278,9 +278,10 @@ export default function ContactsPage() {
                     <div>Company</div>
                     <div>Location</div>
                     <div className="text-center">Stats</div>
+                    <div className="text-center">Owner</div>
                 </div>
 
-                {/* Table Body */}
+                {/* List Body */}
                 <div className="overflow-y-auto flex-1">
                     {contacts.length === 0 ? (
                         <div className="text-center py-16 text-gray-400">
@@ -290,69 +291,129 @@ export default function ContactsPage() {
                         </div>
                     ) : (
                         contacts.map((contact, index) => (
-                            <div key={contact.id} className="group grid grid-cols-[40px_1.5fr_1.5fr_1fr_1.2fr_1fr_100px] gap-4 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 transition-colors items-center text-sm">
-                                <div className="flex justify-center">
-                                    <input type="checkbox" className="rounded border-gray-300 text-[#AF52DE] focus:ring-[#AF52DE]" />
-                                </div>
-
-                                {/* Name & Avatar */}
-                                <div className="flex items-center gap-3 min-w-0 pr-4">
-                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#AF52DE] to-[#5856D6] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                                        {contact.firstName[0]}{contact.lastName[0]}
+                            <div key={contact.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                                {/* Desktop Row */}
+                                <div className="hidden md:grid group grid-cols-[40px_1.5fr_1.5fr_1fr_1.2fr_1fr_100px_100px] gap-4 px-4 py-3 items-center text-sm">
+                                    <div className="flex justify-center">
+                                        <input type="checkbox" className="rounded border-gray-300 text-[#AF52DE] focus:ring-[#AF52DE]" />
                                     </div>
+
+                                    {/* Name & Avatar */}
+                                    <div className="flex items-center gap-3 min-w-0 pr-4">
+                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#AF52DE] to-[#5856D6] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                            {contact.firstName[0]}{contact.lastName[0]}
+                                        </div>
+                                        <div className="truncate">
+                                            <span className="font-medium text-gray-900 block truncate">{contact.firstName} {contact.lastName}</span>
+                                            {/* Row Actions - Visible on Hover */}
+                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); openEditModal(contact); }}
+                                                    className="p-0.5 hover:bg-gray-200 rounded text-gray-500"
+                                                    title="Edit"
+                                                >
+                                                    <Edit2 size={12} />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); setSelectedContact(contact); setShowDeleteModal(true); }}
+                                                    className="p-0.5 hover:bg-red-50 rounded text-red-500"
+                                                    title="Delete"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Email */}
+                                    <div className="truncate text-gray-600">
+                                        {contact.email}
+                                    </div>
+
+                                    {/* Phone */}
+                                    <div className="truncate text-gray-600">
+                                        {contact.phone || '-'}
+                                    </div>
+
+                                    {/* Company */}
                                     <div className="truncate">
-                                        <span className="font-medium text-gray-900 block truncate">{contact.firstName} {contact.lastName}</span>
-                                        {/* Row Actions - Visible on Hover */}
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); openEditModal(contact); }}
-                                                className="p-0.5 hover:bg-gray-200 rounded text-gray-500"
-                                                title="Edit"
-                                            >
-                                                <Edit2 size={12} />
-                                            </button>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setSelectedContact(contact); setShowDeleteModal(true); }}
-                                                className="p-0.5 hover:bg-red-50 rounded text-red-500"
-                                                title="Delete"
-                                            >
-                                                <Trash2 size={12} />
-                                            </button>
+                                        <div className="text-gray-900 truncate">{contact.company || '-'}</div>
+                                        <div className="text-xs text-gray-500 truncate">{contact.jobTitle || '-'}</div>
+                                    </div>
+
+                                    {/* Location */}
+                                    <div className="truncate text-gray-500">
+                                        {[contact.city, contact.country].filter(Boolean).join(', ') || '-'}
+                                    </div>
+
+                                    {/* Stats */}
+                                    <div className="text-center text-xs text-gray-400">
+                                        {contact._count ? (
+                                            <div className="flex flex-col gap-0.5">
+                                                <span>{contact._count.deals} deals</span>
+                                                <span>{contact._count.activities} acts</span>
+                                            </div>
+                                        ) : (
+                                            '-'
+                                        )}
+                                    </div>
+
+                                    {/* Owner */}
+                                    <div className="flex justify-center">
+                                        <div
+                                            className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                                            style={{
+                                                backgroundColor: (contact as any).owner?.name
+                                                    ? `hsl(${(contact as any).owner.name.charCodeAt(0) * 7 % 360}, 60%, 50%)`
+                                                    : '#6B7280'
+                                            }}
+                                            title={(contact as any).owner?.name || 'Unknown'}
+                                        >
+                                            {(contact as any).owner?.name
+                                                ? (contact as any).owner.name.substring(0, 2).toUpperCase()
+                                                : 'NA'}
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Email */}
-                                <div className="truncate text-gray-600">
-                                    {contact.email}
-                                </div>
-
-                                {/* Phone */}
-                                <div className="truncate text-gray-600">
-                                    {contact.phone || '-'}
-                                </div>
-
-                                {/* Company */}
-                                <div className="truncate">
-                                    <div className="text-gray-900 truncate">{contact.company || '-'}</div>
-                                    <div className="text-xs text-gray-500 truncate">{contact.jobTitle || '-'}</div>
-                                </div>
-
-                                {/* Location */}
-                                <div className="truncate text-gray-500">
-                                    {[contact.city, contact.country].filter(Boolean).join(', ') || '-'}
-                                </div>
-
-                                {/* Stats */}
-                                <div className="text-center text-xs text-gray-400">
-                                    {contact._count ? (
-                                        <div className="flex flex-col gap-0.5">
-                                            <span>{contact._count.deals} deals</span>
-                                            <span>{contact._count.activities} acts</span>
+                                {/* Mobile Card View */}
+                                <div className="md:hidden p-4 space-y-3">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#AF52DE] to-[#5856D6] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                                                {contact.firstName[0]}{contact.lastName[0]}
+                                            </div>
+                                            <div>
+                                                <h3 className="font-medium text-gray-900">{contact.firstName} {contact.lastName}</h3>
+                                                <p className="text-xs text-gray-500">{contact.company || 'No Company'}</p>
+                                            </div>
                                         </div>
-                                    ) : (
-                                        '-'
-                                    )}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-1 text-sm text-gray-600">
+                                        <div className="truncate">📧 {contact.email}</div>
+                                        {contact.phone && <div className="truncate">📞 {contact.phone}</div>}
+                                    </div>
+
+                                    <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-100">
+                                        <div>
+                                            {[contact.city, contact.country].filter(Boolean).join(', ') || 'No Location'}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => openEditModal(contact)}
+                                                className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => { setSelectedContact(contact); setShowDeleteModal(true); }}
+                                                className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         ))

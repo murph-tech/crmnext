@@ -7,13 +7,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import Link from 'next/link';
 
-interface UserData {
-    id: string;
-    email: string;
-    name: string;
-    role: string;
-    avatar?: string;
-    createdAt: string;
+import { User as UserType } from '@/types';
+
+interface UserWithCounts extends UserType {
     _count?: {
         leads: number;
         contacts: number;
@@ -29,10 +25,10 @@ const roles = [
 
 export default function UsersPage() {
     const { user, token } = useAuth();
-    const [users, setUsers] = useState<UserData[]>([]);
+    const [users, setUsers] = useState<UserWithCounts[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    const [editingUser, setEditingUser] = useState<UserData | null>(null);
+    const [editingUser, setEditingUser] = useState<UserWithCounts | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
@@ -60,7 +56,7 @@ export default function UsersPage() {
         }
     };
 
-    const handleOpenModal = (existingUser?: UserData) => {
+    const handleOpenModal = (existingUser?: UserWithCounts) => {
         if (existingUser) {
             setEditingUser(existingUser);
             setForm({
@@ -198,10 +194,10 @@ export default function UsersPage() {
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${u.role === 'ADMIN'
-                                            ? 'bg-purple-100 text-purple-700'
-                                            : u.role === 'MANAGER'
-                                                ? 'bg-blue-100 text-blue-700'
-                                                : 'bg-gray-100 text-gray-700'
+                                        ? 'bg-purple-100 text-purple-700'
+                                        : u.role === 'MANAGER'
+                                            ? 'bg-blue-100 text-blue-700'
+                                            : 'bg-gray-100 text-gray-700'
                                         }`}>
                                         {u.role}
                                     </span>
@@ -348,8 +344,8 @@ export default function UsersPage() {
                                             <label
                                                 key={role.value}
                                                 className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${form.role === role.value
-                                                        ? 'border-blue-500 bg-blue-50'
-                                                        : 'border-gray-200 hover:border-gray-300'
+                                                    ? 'border-blue-500 bg-blue-50'
+                                                    : 'border-gray-200 hover:border-gray-300'
                                                     }`}
                                             >
                                                 <input
