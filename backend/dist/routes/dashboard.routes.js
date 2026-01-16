@@ -1,27 +1,18 @@
-import { Router } from 'express';
-import { prisma } from '../index';
-import { authenticate, AuthRequest, getOwnerFilter, getUserFilter, authorize } from '../middleware/auth.middleware';
-
-const router = Router();
-
-router.use(authenticate);
-
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const index_1 = require("../index");
+const auth_middleware_1 = require("../middleware/auth.middleware");
+const router = (0, express_1.Router)();
+router.use(auth_middleware_1.authenticate);
 // Get dashboard stats
-router.get('/stats', async (req: AuthRequest, res, next) => {
+router.get('/stats', async (req, res, next) => {
     try {
-        const ownerFilter = getOwnerFilter(req.user);
-
+        const ownerFilter = (0, auth_middleware_1.getOwnerFilter)(req.user);
         // Get counts
-        const [
-            totalLeads,
-            newLeadsThisMonth,
-            totalContacts,
-            totalDeals,
-            activeDeals,
-            closedWonDeals,
-        ] = await Promise.all([
-            prisma.lead.count({ where: ownerFilter }),
-            prisma.lead.count({
+        const [totalLeads, newLeadsThisMonth, totalContacts, totalDeals, activeDeals, closedWonDeals,] = await Promise.all([
+            index_1.prisma.lead.count({ where: ownerFilter }),
+            index_1.prisma.lead.count({
                 where: {
                     ...ownerFilter,
                     createdAt: {
@@ -29,15 +20,15 @@ router.get('/stats', async (req: AuthRequest, res, next) => {
                     },
                 },
             }),
-            prisma.contact.count({ where: ownerFilter }),
-            prisma.deal.count({ where: ownerFilter }),
-            prisma.deal.count({
+            index_1.prisma.contact.count({ where: ownerFilter }),
+            index_1.prisma.deal.count({ where: ownerFilter }),
+            index_1.prisma.deal.count({
                 where: {
                     ...ownerFilter,
                     stage: { notIn: ['CLOSED_WON', 'CLOSED_LOST'] },
                 },
             }),
-            prisma.deal.findMany({
+            index_1.prisma.deal.findMany({
                 where: {
                     ...ownerFilter,
                     stage: 'CLOSED_WON',
@@ -45,21 +36,15 @@ router.get('/stats', async (req: AuthRequest, res, next) => {
                 select: { value: true },
             }),
         ]);
-
         // Calculate revenue
-        const totalRevenue = closedWonDeals.reduce(
-            (sum: number, deal: { value: any }) => sum + Number(deal.value),
-            0
-        );
-
+        const totalRevenue = closedWonDeals.reduce((sum, deal) => sum + Number(deal.value), 0);
         // Calculate conversion rate
-        const convertedLeads = await prisma.lead.count({
+        const convertedLeads = await index_1.prisma.lead.count({
             where: { ...ownerFilter, status: 'CONVERTED' },
         });
         const conversionRate = totalLeads > 0
             ? Math.round((convertedLeads / totalLeads) * 100 * 10) / 10
             : 0;
-
         res.json({
             totalRevenue,
             newLeads: newLeadsThisMonth,
@@ -70,16 +55,16 @@ router.get('/stats', async (req: AuthRequest, res, next) => {
             totalDeals,
             closedWonCount: closedWonDeals.length,
         });
-    } catch (error) {
+    }
+    catch (error) {
         next(error);
     }
 });
-
 // Get recent activity
-router.get('/recent-activity', async (req: AuthRequest, res, next) => {
+router.get('/recent-activity', async (req, res, next) => {
     try {
-        const activities = await prisma.activity.findMany({
-            where: getUserFilter(req.user),
+        const activities = await index_1.prisma.activity.findMany({
+            where: (0, auth_middleware_1.getUserFilter)(req.user),
             orderBy: { createdAt: 'desc' },
             take: 10,
             include: {
@@ -88,50 +73,43 @@ router.get('/recent-activity', async (req: AuthRequest, res, next) => {
                 deal: { select: { title: true, value: true } },
             },
         });
-
         res.json(activities);
-    } catch (error) {
+    }
+    catch (error) {
         next(error);
     }
 });
-
 // Get pipeline overview
-router.get('/pipeline-overview', async (req: AuthRequest, res, next) => {
+router.get('/pipeline-overview', async (req, res, next) => {
     try {
         const stages = ['QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON'];
-
-        const pipeline = await Promise.all(
-            stages.map(async (stage) => {
-                const deals = await prisma.deal.findMany({
-                    where: {
-                        ...getOwnerFilter(req.user),
-                        stage: stage as any,
-                    },
-                    select: { value: true },
-                });
-
-                return {
-                    stage,
-                    count: deals.length,
-                    value: deals.reduce((sum: number, d: { value: any }) => sum + Number(d.value), 0),
-                };
-            })
-        );
-
+        const pipeline = await Promise.all(stages.map(async (stage) => {
+            const deals = await index_1.prisma.deal.findMany({
+                where: {
+                    ...(0, auth_middleware_1.getOwnerFilter)(req.user),
+                    stage: stage,
+                },
+                select: { value: true },
+            });
+            return {
+                stage,
+                count: deals.length,
+                value: deals.reduce((sum, d) => sum + Number(d.value), 0),
+            };
+        }));
         res.json(pipeline);
-    } catch (error) {
+    }
+    catch (error) {
         next(error);
     }
 });
-
 // Get reminders (tasks due soon)
-router.get('/reminders', async (req: AuthRequest, res, next) => {
+router.get('/reminders', async (req, res, next) => {
     try {
-        const userFilter = getUserFilter(req.user);
+        const userFilter = (0, auth_middleware_1.getUserFilter)(req.user);
         const now = new Date();
         const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-
-        const reminders = await prisma.activity.findMany({
+        const reminders = await index_1.prisma.activity.findMany({
             where: {
                 ...userFilter,
                 completed: false,
@@ -154,17 +132,16 @@ router.get('/reminders', async (req: AuthRequest, res, next) => {
                 deal: { select: { id: true, title: true } },
             },
         });
-
         res.json(reminders);
-    } catch (error) {
+    }
+    catch (error) {
         next(error);
     }
 });
-
 // Get sales performance (Admin only)
-router.get('/sales-performance', authorize('ADMIN'), async (req: AuthRequest, res, next) => {
+router.get('/sales-performance', (0, auth_middleware_1.authorize)('ADMIN'), async (req, res, next) => {
     try {
-        const users = await prisma.user.findMany({
+        const users = await index_1.prisma.user.findMany({
             select: {
                 id: true,
                 name: true,
@@ -172,34 +149,29 @@ router.get('/sales-performance', authorize('ADMIN'), async (req: AuthRequest, re
                 avatar: true,
             },
         });
-
-        const performance = await Promise.all(
-            users.map(async (user) => {
-                const [deals, contacts, leads] = await Promise.all([
-                    prisma.deal.count({ where: { ownerId: user.id } }),
-                    prisma.contact.count({ where: { ownerId: user.id } }),
-                    prisma.lead.count({ where: { ownerId: user.id } }),
-                ]);
-
-                return {
-                    id: user.id,
-                    name: user.name,
-                    email: user.email,
-                    avatar: user.avatar,
-                    deals,
-                    contacts,
-                    leads,
-                };
-            })
-        );
-
+        const performance = await Promise.all(users.map(async (user) => {
+            const [deals, contacts, leads] = await Promise.all([
+                index_1.prisma.deal.count({ where: { ownerId: user.id } }),
+                index_1.prisma.contact.count({ where: { ownerId: user.id } }),
+                index_1.prisma.lead.count({ where: { ownerId: user.id } }),
+            ]);
+            return {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                avatar: user.avatar,
+                deals,
+                contacts,
+                leads,
+            };
+        }));
         // Sort by most deals
         performance.sort((a, b) => b.deals - a.deals);
-
         res.json(performance);
-    } catch (error) {
+    }
+    catch (error) {
         next(error);
     }
 });
-
-export default router;
+exports.default = router;
+//# sourceMappingURL=dashboard.routes.js.map

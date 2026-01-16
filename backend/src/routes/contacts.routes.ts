@@ -9,11 +9,12 @@ router.use(authenticate);
 // Get all contacts
 router.get('/', async (req: AuthRequest, res, next) => {
     try {
-        const { search } = req.query;
+        const { search, ownerId } = req.query;
 
         const contacts = await prisma.contact.findMany({
             where: {
                 ...getOwnerFilter(req.user),
+                ...(ownerId && req.user?.role === 'ADMIN' ? { ownerId: ownerId as string } : {}),
                 ...(search && {
                     OR: [
                         { firstName: { contains: search as string } },

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Contact, Plus, Search, Edit2, Trash2, Loader2, Mail, Phone, Building } from 'lucide-react';
+import { Contact, Plus, Search, Edit2, Trash2, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import Modal from '@/components/ui/Modal';
@@ -49,20 +49,20 @@ export default function ContactsPage() {
         notes: '',
     });
 
-    useEffect(() => {
-        if (token) loadContacts();
-    }, [token]);
-
-    const loadContacts = async () => {
+    const loadContacts = useCallback(async () => {
         try {
-            const data = await api.getContacts(token!, searchQuery || undefined);
+            const data = await api.getContacts(token!, { search: searchQuery || undefined });
             setContacts(data);
         } catch (error) {
             console.error('Failed to load contacts:', error);
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [token, searchQuery]);
+
+    useEffect(() => {
+        if (token) loadContacts();
+    }, [token, loadContacts]);
 
     const resetForm = () => {
         setFormData({

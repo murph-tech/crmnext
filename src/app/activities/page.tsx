@@ -8,20 +8,7 @@ import { api } from '@/lib/api';
 import Modal from '@/components/ui/Modal';
 import ActivityForm from '@/components/activities/ActivityForm';
 
-interface Activity {
-    id: string;
-    type: 'CALL' | 'EMAIL' | 'MEETING' | 'TASK' | 'DEADLINE';
-    title: string;
-    description?: string;
-    dueDate?: string;
-    duration?: number;
-    completed: boolean;
-    completedAt?: string;
-    lead?: { id: string; firstName: string; lastName: string; company?: string };
-    contact?: { id: string; firstName: string; lastName: string; company?: string };
-    deal?: { id: string; title: string; contact?: { company?: string } };
-    createdAt: string;
-}
+import { Activity } from '@/types';
 
 const typeIcons: Record<string, any> = {
     CALL: Phone,

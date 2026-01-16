@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { api } from '@/lib/api';
+import { formatCurrency } from '@/lib/utils';
 import { motion } from 'framer-motion';
 import {
   DollarSign,
@@ -11,18 +14,22 @@ import {
   Calendar,
   Loader2,
   Clock,
-  CheckCircle2
+  CheckCircle2,
 } from 'lucide-react';
+import { format } from 'date-fns';
+import Link from 'next/link';
 import StatCard from '@/components/dashboard/StatCard';
 import ActivityTable from '@/components/dashboard/ActivityTable';
-import { useAuth } from '@/contexts/AuthContext';
-import { api } from '@/lib/api';
 
 interface DashboardStats {
   totalRevenue: number;
   newLeads: number;
   activeDeals: number;
   conversionRate: number;
+  totalLeads: number;
+  totalContacts: number;
+  totalDeals: number;
+  closedWonCount: number;
 }
 
 export default function DashboardPage() {
@@ -30,44 +37,39 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activities, setActivities] = useState<any[]>([]);
   const [reminders, setReminders] = useState<any[]>([]);
+
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        const promises: Promise<any>[] = [
+          api.getDashboardStats(token!),
+          api.getRecentActivity(token!),
+          api.getReminders(token!),
+        ];
+
+        const results = await Promise.all(promises);
+
+        setStats(results[0]);
+        setActivities(results[1]);
+        setReminders(results[2]);
+      } catch (error) {
+        console.error('Failed to load dashboard data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     if (token) {
       loadDashboardData();
     }
   }, [token]);
 
-  const loadDashboardData = async () => {
-    try {
-      const [statsData, activitiesData, remindersData] = await Promise.all([
-        api.getDashboardStats(token!),
-        api.getRecentActivity(token!),
-        api.getReminders(token!),
-      ]);
-      setStats(statsData);
-      setActivities(activitiesData);
-      setReminders(remindersData);
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('th-TH', {
-      style: 'currency',
-      currency: 'THB',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 size={32} className="animate-spin text-[#007AFF]" />
+      <div className="flex h-[50vh] items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
       </div>
     );
   }
@@ -78,28 +80,28 @@ export default function DashboardPage() {
       value: formatCurrency(stats?.totalRevenue || 0),
       change: { value: '12.5%', positive: true },
       icon: DollarSign,
-      iconColor: '#34C759',
+      color: '#007AFF', // Blue
     },
     {
       title: 'ลูกค้าใหม่',
       value: String(stats?.newLeads || 0),
       change: { value: '8.2%', positive: true },
       icon: Users,
-      iconColor: '#007AFF',
+      color: '#34C759', // Green
     },
     {
       title: 'ดีลที่กำลังดำเนินการ',
       value: String(stats?.activeDeals || 0),
       change: { value: '3.1%', positive: false },
       icon: TrendingUp,
-      iconColor: '#AF52DE',
+      color: '#FF9500', // Orange
     },
     {
       title: 'อัตราการปิดการขาย',
       value: `${stats?.conversionRate || 0}%`,
       change: { value: '5.4%', positive: true },
       icon: Target,
-      iconColor: '#FF9500',
+      color: '#AF52DE', // Purple
     },
   ];
 
@@ -144,8 +146,10 @@ export default function DashboardPage() {
         ))}
       </div>
 
+
+
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
         {/* Main Column (2/3) - Reminders & Tasks */}
         <div className="lg:col-span-2 space-y-6">
           <motion.div
@@ -272,30 +276,30 @@ export default function DashboardPage() {
                 { label: 'สร้างดีลใหม่', color: '#34C759', href: '/pipeline' },
                 { label: 'นัดหมายการโทร', color: '#AF52DE', href: '/contacts' },
               ].map((action) => (
-                <motion.a
-                  key={action.label}
-                  href={action.href}
-                  whileHover={{ x: 4 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-black/[0.03] transition-colors duration-200 group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center"
-                      style={{ backgroundColor: `${action.color}12` }}
-                    >
+                <Link key={action.label} href={action.href} passHref legacyBehavior>
+                  <motion.a
+                    whileHover={{ x: 4 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full flex items-center justify-between p-4 rounded-2xl hover:bg-black/[0.03] transition-colors duration-200 group block cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
                       <div
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: action.color }}
-                      />
+                        className="w-10 h-10 rounded-xl flex items-center justify-center"
+                        style={{ backgroundColor: `${action.color}12` }}
+                      >
+                        <div
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: action.color }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-gray-700">{action.label}</span>
                     </div>
-                    <span className="text-sm font-medium text-gray-700">{action.label}</span>
-                  </div>
-                  <ArrowRight
-                    size={16}
-                    className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                  />
-                </motion.a>
+                    <ArrowRight
+                      size={16}
+                      className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                    />
+                  </motion.a>
+                </Link>
               ))}
             </div>
 

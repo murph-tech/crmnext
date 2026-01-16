@@ -56,6 +56,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
     }, []);
 
+    const logout = useCallback(() => {
+        setToken(null);
+        setUser(null);
+        localStorage.removeItem('crm_token');
+        localStorage.removeItem('crm_user');
+        localStorage.removeItem('crm_last_activity');
+    }, []);
+
     // Auto logout on inactivity
     useEffect(() => {
         if (!token) return;
@@ -109,14 +117,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('crm_user', JSON.stringify(response.user));
         localStorage.setItem('crm_last_activity', Date.now().toString());
     };
-
-    const logout = useCallback(() => {
-        setToken(null);
-        setUser(null);
-        localStorage.removeItem('crm_token');
-        localStorage.removeItem('crm_user');
-        localStorage.removeItem('crm_last_activity');
-    }, []);
 
     const refreshUser = async () => {
         if (!token) return;

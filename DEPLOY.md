@@ -159,7 +159,7 @@ su - crmapp
 
 # Clone repository
 cd /var/www
-git clone https://github.com/your-repo/crm-next.git
+git clone https://github.com/murph-tech/crmnext.git
 cd crm-next
 ```
 

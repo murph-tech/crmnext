@@ -23,28 +23,9 @@ const quickReminderOptions = [
 ];
 
 export default function ActivityForm({ onSubmit, onCancel, initialData, isEdit = false, defaultType }: ActivityFormProps) {
-    const [formData, setFormData] = useState({
-        title: '',
-        type: defaultType || 'TASK',
-        description: '',
-        dueDate: '', // YYYY-MM-DD
-        dueTime: '', // HH:MM
-        duration: 30,
-        reminderMinutes: '0', // 0 means reminderAt = dueDate
-        completed: false,
-    });
-
-    const [quickOption, setQuickOption] = useState('');
-
-    useEffect(() => {
-        if (defaultType) {
-            setFormData(prev => ({ ...prev, type: defaultType }));
-        }
-    }, [defaultType]);
-
-    useEffect(() => {
+    const [formData, setFormData] = useState(() => {
         if (initialData) {
-            setFormData({
+            return {
                 title: initialData.title,
                 type: initialData.type,
                 description: initialData.description || '',
@@ -53,17 +34,24 @@ export default function ActivityForm({ onSubmit, onCancel, initialData, isEdit =
                 duration: initialData.duration || 30,
                 reminderMinutes: initialData.reminderAt ? '0' : '', // If reminder exists, assume it's set
                 completed: initialData.completed || false,
-            });
-        } else {
-            // Default to today
-            const now = new Date();
-            setFormData(prev => ({
-                ...prev,
-                dueDate: now.toISOString().split('T')[0],
-                dueTime: now.toTimeString().slice(0, 5)
-            }));
+            };
         }
-    }, [initialData]);
+
+        // Default to today
+        const now = new Date();
+        return {
+            title: '',
+            type: defaultType || 'TASK',
+            description: '',
+            dueDate: now.toISOString().split('T')[0],
+            dueTime: now.toTimeString().slice(0, 5),
+            duration: 30,
+            reminderMinutes: '0', // 0 means reminderAt = dueDate
+            completed: false,
+        };
+    });
+
+    const [quickOption, setQuickOption] = useState('');
 
     const handleQuickOptionChange = (minutesStr: string) => {
         setQuickOption(minutesStr);

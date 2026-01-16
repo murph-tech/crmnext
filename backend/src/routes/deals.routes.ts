@@ -9,11 +9,12 @@ router.use(authenticate);
 // Get all deals
 router.get('/', async (req: AuthRequest, res, next) => {
     try {
-        const { stage } = req.query;
+        const { stage, ownerId } = req.query;
 
         const deals = await prisma.deal.findMany({
             where: {
                 ...getOwnerFilter(req.user),
+                ...(ownerId && req.user?.role === 'ADMIN' ? { ownerId: ownerId as string } : {}),
                 ...(stage && { stage: stage as any }),
             },
             orderBy: { createdAt: 'desc' },

@@ -1,3 +1,16 @@
+import {
+    AuthResponse,
+    User,
+    DashboardStats,
+    Lead,
+    Contact,
+    Deal,
+    Activity,
+    Product,
+    SalesPerformance,
+    Reminder
+} from '@/types';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 interface FetchOptions extends RequestInit {
@@ -38,25 +51,25 @@ class ApiClient {
 
     // Auth
     async login(email: string, password: string) {
-        return this.request<{ user: any; token: string }>('/api/auth/login', {
+        return this.request<AuthResponse>('/api/auth/login', {
             method: 'POST',
             body: JSON.stringify({ email, password }),
         });
     }
 
     async register(email: string, password: string, name: string) {
-        return this.request<{ user: any; token: string }>('/api/auth/register', {
+        return this.request<AuthResponse>('/api/auth/register', {
             method: 'POST',
             body: JSON.stringify({ email, password, name }),
         });
     }
 
     async getMe(token: string) {
-        return this.request<any>('/api/auth/me', { token });
+        return this.request<User>('/api/auth/me', { token });
     }
 
     async updateProfile(token: string, data: { name?: string; email?: string }) {
-        return this.request<any>('/api/auth/me', {
+        return this.request<User>('/api/auth/me', {
             method: 'PUT',
             body: JSON.stringify(data),
             token,
@@ -64,7 +77,7 @@ class ApiClient {
     }
 
     async changePassword(token: string, data: any) {
-        return this.request<any>('/api/auth/password', {
+        return this.request<{ message: string }>('/api/auth/password', {
             method: 'PUT',
             body: JSON.stringify(data),
             token,
@@ -73,23 +86,27 @@ class ApiClient {
 
     // Dashboard
     async getDashboardStats(token: string) {
-        return this.request<any>('/api/dashboard/stats', { token });
+        return this.request<DashboardStats>('/api/dashboard/stats', { token });
     }
 
     async getRecentActivity(token: string) {
-        return this.request<any[]>('/api/dashboard/recent-activity', { token });
+        return this.request<Activity[]>('/api/dashboard/recent-activity', { token });
     }
 
     async getPipelineOverview(token: string) {
         return this.request<any[]>('/api/dashboard/pipeline-overview', { token });
     }
 
+    async getSalesPerformance(token: string) {
+        return this.request<SalesPerformance[]>('/api/dashboard/sales-performance', { token });
+    }
+
     async getReminders(token: string) {
-        return this.request<any[]>('/api/dashboard/reminders', { token });
+        return this.request<Reminder[]>('/api/dashboard/reminders', { token });
     }
 
     // Leads
-    async getLeads(token: string, params?: { status?: string; search?: string }) {
+    async getLeads(token: string, params?: { status?: string; search?: string; ownerId?: string }) {
         const filteredParams = params
             ? Object.fromEntries(
                 Object.entries(params).filter(([_, v]) => v !== undefined && v !== '')
@@ -98,23 +115,23 @@ class ApiClient {
         const query = Object.keys(filteredParams).length
             ? `?${new URLSearchParams(filteredParams as any)}`
             : '';
-        return this.request<any[]>(`/api/leads${query}`, { token });
+        return this.request<Lead[]>(`/api/leads${query}`, { token });
     }
 
     async getLead(token: string, id: string) {
-        return this.request<any>(`/api/leads/${id}`, { token });
+        return this.request<Lead>(`/api/leads/${id}`, { token });
     }
 
-    async createLead(token: string, data: any) {
-        return this.request<any>('/api/leads', {
+    async createLead(token: string, data: Partial<Lead>) {
+        return this.request<Lead>('/api/leads', {
             method: 'POST',
             body: JSON.stringify(data),
             token,
         });
     }
 
-    async updateLead(token: string, id: string, data: any) {
-        return this.request<any>(`/api/leads/${id}`, {
+    async updateLead(token: string, id: string, data: Partial<Lead>) {
+        return this.request<Lead>(`/api/leads/${id}`, {
             method: 'PUT',
             body: JSON.stringify(data),
             token,
@@ -122,35 +139,42 @@ class ApiClient {
     }
 
     async deleteLead(token: string, id: string) {
-        return this.request<any>(`/api/leads/${id}`, {
+        return this.request<{ message: string }>(`/api/leads/${id}`, {
             method: 'DELETE',
             token,
         });
     }
 
     async convertLead(token: string, id: string) {
-        return this.request<any>(`/api/leads/${id}/convert`, {
+        return this.request<{ message: string; contactId?: string; dealId?: string }>(`/api/leads/${id}/convert`, {
             method: 'POST',
             token,
         });
     }
 
     // Contacts
-    async getContacts(token: string, search?: string) {
-        const query = search ? `?search=${encodeURIComponent(search)}` : '';
-        return this.request<any[]>(`/api/contacts${query}`, { token });
+    async getContacts(token: string, params?: { search?: string; ownerId?: string }) {
+        const filteredParams = params
+            ? Object.fromEntries(
+                Object.entries(params).filter(([_, v]) => v !== undefined && v !== '')
+            )
+            : {};
+        const query = Object.keys(filteredParams).length
+            ? `?${new URLSearchParams(filteredParams as any)}`
+            : '';
+        return this.request<Contact[]>(`/api/contacts${query}`, { token });
     }
 
-    async createContact(token: string, data: any) {
-        return this.request<any>('/api/contacts', {
+    async createContact(token: string, data: Partial<Contact>) {
+        return this.request<Contact>('/api/contacts', {
             method: 'POST',
             body: JSON.stringify(data),
             token,
         });
     }
 
-    async updateContact(token: string, id: string, data: any) {
-        return this.request<any>(`/api/contacts/${id}`, {
+    async updateContact(token: string, id: string, data: Partial<Contact>) {
+        return this.request<Contact>(`/api/contacts/${id}`, {
             method: 'PUT',
             body: JSON.stringify(data),
             token,
@@ -158,29 +182,36 @@ class ApiClient {
     }
 
     async deleteContact(token: string, id: string) {
-        return this.request<any>(`/api/contacts/${id}`, {
+        return this.request<{ message: string }>(`/api/contacts/${id}`, {
             method: 'DELETE',
             token,
         });
     }
 
     // Deals
-    async getDeals(token: string, stage?: string) {
-        const query = stage ? `?stage=${stage}` : '';
-        return this.request<any[]>(`/api/deals${query}`, { token });
+    async getDeals(token: string, params?: { stage?: string; ownerId?: string }) {
+        const filteredParams = params
+            ? Object.fromEntries(
+                Object.entries(params).filter(([_, v]) => v !== undefined && v !== '')
+            )
+            : {};
+        const query = Object.keys(filteredParams).length
+            ? `?${new URLSearchParams(filteredParams as any)}`
+            : '';
+        return this.request<Deal[]>(`/api/deals${query}`, { token });
     }
 
     async getPipeline(token: string, search?: string) {
         const query = search ? `?search=${encodeURIComponent(search)}` : '';
-        return this.request<any[]>(`/api/deals/pipeline${query}`, { token });
+        return this.request<Deal[]>(`/api/deals/pipeline${query}`, { token });
     }
 
     async getDeal(token: string, id: string) {
-        return this.request<any>(`/api/deals/${id}`, { token });
+        return this.request<Deal>(`/api/deals/${id}`, { token });
     }
 
     async addDealItem(token: string, dealId: string, data: any) {
-        return this.request<any>(`/api/deals/${dealId}/items`, {
+        return this.request<Deal>(`/api/deals/${dealId}/items`, {
             method: 'POST',
             body: JSON.stringify(data),
             token,
@@ -188,22 +219,22 @@ class ApiClient {
     }
 
     async removeDealItem(token: string, dealId: string, itemId: string) {
-        return this.request<any>(`/api/deals/${dealId}/items/${itemId}`, {
+        return this.request<Deal>(`/api/deals/${dealId}/items/${itemId}`, {
             method: 'DELETE',
             token,
         });
     }
 
-    async createDeal(token: string, data: any) {
-        return this.request<any>('/api/deals', {
+    async createDeal(token: string, data: Partial<Deal>) {
+        return this.request<Deal>('/api/deals', {
             method: 'POST',
             body: JSON.stringify(data),
             token,
         });
     }
 
-    async updateDeal(token: string, id: string, data: any) {
-        return this.request<any>(`/api/deals/${id}`, {
+    async updateDeal(token: string, id: string, data: Partial<Deal>) {
+        return this.request<Deal>(`/api/deals/${id}`, {
             method: 'PUT',
             body: JSON.stringify(data),
             token,
@@ -211,14 +242,14 @@ class ApiClient {
     }
 
     async deleteDeal(token: string, id: string) {
-        return this.request<any>(`/api/deals/${id}`, {
+        return this.request<{ message: string }>(`/api/deals/${id}`, {
             method: 'DELETE',
             token,
         });
     }
 
     async updateDealStage(token: string, id: string, stage: string) {
-        return this.request<any>(`/api/deals/${id}/stage`, {
+        return this.request<Deal>(`/api/deals/${id}/stage`, {
             method: 'PATCH',
             body: JSON.stringify({ stage }),
             token,
@@ -227,15 +258,15 @@ class ApiClient {
 
     // Activities
     async getActivities(token: string) {
-        return this.request<any[]>('/api/activities', { token });
+        return this.request<Activity[]>('/api/activities', { token });
     }
 
     async getUpcomingActivities(token: string) {
-        return this.request<any[]>('/api/activities/upcoming', { token });
+        return this.request<Activity[]>('/api/activities/upcoming', { token });
     }
 
-    async createActivity(token: string, data: any) {
-        return this.request<any>('/api/activities', {
+    async createActivity(token: string, data: Partial<Activity>) {
+        return this.request<Activity>('/api/activities', {
             method: 'POST',
             body: JSON.stringify(data),
             token,
@@ -243,14 +274,14 @@ class ApiClient {
     }
 
     async completeActivity(token: string, id: string) {
-        return this.request<any>(`/api/activities/${id}/complete`, {
+        return this.request<Activity>(`/api/activities/${id}/complete`, {
             method: 'PATCH',
             token,
         });
     }
 
-    async updateActivity(token: string, id: string, data: any) {
-        return this.request<any>(`/api/activities/${id}`, {
+    async updateActivity(token: string, id: string, data: Partial<Activity>) {
+        return this.request<Activity>(`/api/activities/${id}`, {
             method: 'PUT',
             body: JSON.stringify(data),
             token,
@@ -258,7 +289,7 @@ class ApiClient {
     }
 
     async deleteActivity(token: string, id: string) {
-        return this.request<any>(`/api/activities/${id}`, {
+        return this.request<{ message: string }>(`/api/activities/${id}`, {
             method: 'DELETE',
             token,
         });
@@ -266,19 +297,19 @@ class ApiClient {
 
     // Products
     async getProducts(token: string) {
-        return this.request<any[]>('/api/products', { token });
+        return this.request<Product[]>('/api/products', { token });
     }
 
-    async createProduct(token: string, data: any) {
-        return this.request<any>('/api/products', {
+    async createProduct(token: string, data: Partial<Product>) {
+        return this.request<Product>('/api/products', {
             method: 'POST',
             body: JSON.stringify(data),
             token,
         });
     }
 
-    async updateProduct(token: string, id: string, data: any) {
-        return this.request<any>(`/api/products/${id}`, {
+    async updateProduct(token: string, id: string, data: Partial<Product>) {
+        return this.request<Product>(`/api/products/${id}`, {
             method: 'PUT',
             body: JSON.stringify(data),
             token,
@@ -286,7 +317,7 @@ class ApiClient {
     }
 
     async deleteProduct(token: string, id: string) {
-        return this.request<any>(`/api/products/${id}`, {
+        return this.request<{ message: string }>(`/api/products/${id}`, {
             method: 'DELETE',
             token,
         });
@@ -306,7 +337,7 @@ class ApiClient {
     }
 
     async testEmail(token: string, config: any) {
-        return this.request<any>('/api/settings/email/test', {
+        return this.request<{ message: string }>('/api/settings/email/test', {
             method: 'POST',
             body: JSON.stringify(config),
             token,
@@ -315,15 +346,15 @@ class ApiClient {
 
     // Users (Admin only)
     async getUsers(token: string) {
-        return this.request<any[]>('/api/users', { token });
+        return this.request<User[]>('/api/users', { token });
     }
 
     async getUser(token: string, id: string) {
-        return this.request<any>(`/api/users/${id}`, { token });
+        return this.request<User>(`/api/users/${id}`, { token });
     }
 
     async createUser(token: string, data: { email: string; password: string; name: string; role?: string }) {
-        return this.request<any>('/api/users', {
+        return this.request<User>('/api/users', {
             method: 'POST',
             body: JSON.stringify(data),
             token,
@@ -331,7 +362,7 @@ class ApiClient {
     }
 
     async updateUser(token: string, id: string, data: { email?: string; name?: string; role?: string; password?: string }) {
-        return this.request<any>(`/api/users/${id}`, {
+        return this.request<User>(`/api/users/${id}`, {
             method: 'PUT',
             body: JSON.stringify(data),
             token,
@@ -339,7 +370,7 @@ class ApiClient {
     }
 
     async deleteUser(token: string, id: string) {
-        return this.request<any>(`/api/users/${id}`, {
+        return this.request<{ message: string }>(`/api/users/${id}`, {
             method: 'DELETE',
             token,
         });
