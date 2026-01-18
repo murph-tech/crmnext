@@ -120,7 +120,7 @@ EOF
 
     npm install
     npx prisma generate
-    npx prisma migrate deploy
+    npx prisma db push --force-reset
     npm run db:seed
     npm run build
     cd ..
@@ -177,5 +177,9 @@ EOF"
     echo -e "${GREEN}============================================${NC}"
     echo -e "App URL: ${YELLOW}http://$DOMAIN_NAME:$NGINX_PORT${NC}"
     echo -e "API URL: ${YELLOW}http://$DOMAIN_NAME:$NGINX_PORT/api${NC}"
+    echo ""
+    echo -e "${GREEN}Default Login Credentials:${NC}"
+    echo -e "   Username: ${YELLOW}admin${NC}"
+    echo -e "   Password: ${YELLOW}crm@123${NC}"
     echo -e "${GREEN}============================================${NC}"
 fi

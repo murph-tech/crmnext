@@ -13,14 +13,15 @@ async function main() {
         where: { email: 'admin@crm.com' },
         update: {},
         create: {
+            username: 'admin',
             email: 'admin@crm.com',
             password: hashedPassword,
-            name: 'John Doe',
+            name: 'Administrator',
             role: 'ADMIN',
         },
     });
 
-    console.log('✅ Created admin user:', admin.email);
+    console.log('✅ Created admin user:', admin.username);
 
     // Create sample leads
     const leads = await Promise.all([
@@ -188,7 +189,7 @@ async function main() {
     console.log('🎉 Database seeded successfully!');
     console.log('');
     console.log('📧 Login credentials:');
-    console.log('   Email: admin@crm.com');
+    console.log('   Username: admin');
     console.log('   Password: crm@123');
 }
 

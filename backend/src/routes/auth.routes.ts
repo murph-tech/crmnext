@@ -28,10 +28,10 @@ router.post('/setup', async (req, res, next) => {
             return res.status(400).json({ error: 'Setup already completed. Admin user exists.' });
         }
 
-        const { email, password, name } = req.body;
+        const { username, email, password, name } = req.body;
 
-        if (!email || !password || !name) {
-            return res.status(400).json({ error: 'Email, password, and name are required' });
+        if (!username || !email || !password || !name) {
+            return res.status(400).json({ error: 'Username, email, password, and name are required' });
         }
 
         // Hash password
@@ -40,6 +40,7 @@ router.post('/setup', async (req, res, next) => {
         // Create admin user
         const user = await prisma.user.create({
             data: {
+                username,
                 email,
                 password: hashedPassword,
                 name,
@@ -47,6 +48,7 @@ router.post('/setup', async (req, res, next) => {
             },
             select: {
                 id: true,
+                username: true,
                 email: true,
                 name: true,
                 role: true,
@@ -55,7 +57,7 @@ router.post('/setup', async (req, res, next) => {
 
         // Generate token
         const token = jwt.sign(
-            { userId: user.id, email: user.email, role: user.role },
+            { userId: user.id, username: user.username, role: user.role },
             process.env.JWT_SECRET || 'your-secret-key',
             { expiresIn: '7d' }
         );
@@ -118,11 +120,11 @@ router.post('/register', async (req, res, next) => {
 // Login
 router.post('/login', async (req, res, next) => {
     try {
-        const { email, password } = req.body;
+        const { username, password } = req.body;
 
-        // Find user
+        // Find user by username
         const user = await prisma.user.findUnique({
-            where: { email },
+            where: { username },
         });
 
         if (!user) {
@@ -138,7 +140,7 @@ router.post('/login', async (req, res, next) => {
 
         // Generate token
         const token = jwt.sign(
-            { userId: user.id, email: user.email, role: user.role },
+            { userId: user.id, username: user.username, role: user.role },
             process.env.JWT_SECRET || 'your-secret-key',
             { expiresIn: '7d' }
         );
@@ -146,6 +148,7 @@ router.post('/login', async (req, res, next) => {
         res.json({
             user: {
                 id: user.id,
+                username: user.username,
                 email: user.email,
                 name: user.name,
                 role: user.role,

@@ -9,6 +9,7 @@ export default function SetupPage() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
     const [formData, setFormData] = useState({
+        username: '',
         name: '',
         email: '',
         password: '',
@@ -29,6 +30,11 @@ export default function SetupPage() {
             return;
         }
 
+        if (formData.username.length < 3) {
+            setError('Username must be at least 3 characters');
+            return;
+        }
+
         setIsSubmitting(true);
 
         try {
@@ -36,6 +42,7 @@ export default function SetupPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    username: formData.username,
                     name: formData.name,
                     email: formData.email,
                     password: formData.password,
@@ -46,7 +53,6 @@ export default function SetupPage() {
 
             if (!response.ok) {
                 if (data.error?.includes('already')) {
-                    // Setup already done, redirect to login
                     window.location.href = '/login';
                     return;
                 }
@@ -100,7 +106,19 @@ export default function SetupPage() {
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit} className="space-y-5">
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">Username</label>
+                            <input
+                                type="text"
+                                required
+                                value={formData.username}
+                                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="admin"
+                            />
+                        </div>
+
                         <div>
                             <label className="block text-sm font-medium text-slate-300 mb-2">Full Name</label>
                             <input
@@ -152,7 +170,7 @@ export default function SetupPage() {
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="w-full py-3 px-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all disabled:opacity-50 shadow-lg"
+                            className="w-full py-3 px-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all disabled:opacity-50 shadow-lg mt-2"
                         >
                             {isSubmitting ? 'Creating...' : '🔐 Create Admin Account'}
                         </button>

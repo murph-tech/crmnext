@@ -3,12 +3,11 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
-import { Mail, Lock, Loader2 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { User, Lock, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
     const { login } = useAuth();
-    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -38,7 +37,7 @@ export default function LoginPage() {
         setIsLoading(true);
 
         try {
-            await login(email, password);
+            await login(username, password);
             window.location.href = '/';
         } catch (err: any) {
             setError(err.message || 'Login failed');
@@ -82,16 +81,16 @@ export default function LoginPage() {
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Email
+                                Username
                             </label>
                             <div className="relative">
-                                <Mail size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <User size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    type="text"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
                                     className="w-full h-12 pl-11 pr-4 rounded-xl spotlight-input text-sm"
-                                    placeholder="Enter your email"
+                                    placeholder="Enter your username"
                                     autoComplete="off"
                                     required
                                 />
