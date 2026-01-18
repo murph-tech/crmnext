@@ -15,21 +15,10 @@ export default function LoginPage() {
     const [appName, setAppName] = useState('CRM Next');
     const [appLogo, setAppLogo] = useState('');
 
-    // Load branding settings and check setup status
+    // Load branding settings
     useEffect(() => {
-        const checkSetupAndLoadBranding = async () => {
+        const loadBranding = async () => {
             try {
-                // Check if setup is needed
-                const setupResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'}/auth/setup/check`);
-                if (setupResponse.ok) {
-                    const setupData = await setupResponse.json();
-                    if (setupData.needsSetup) {
-                        window.location.replace('/setup');
-                        return;
-                    }
-                }
-
-                // Fetch branding settings
                 const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/settings/public`);
                 if (response.ok) {
                     const data = await response.json();
@@ -37,10 +26,10 @@ export default function LoginPage() {
                     if (data.logo) setAppLogo(data.logo);
                 }
             } catch (err) {
-                // Use defaults if can't fetch settings
+                // Use defaults
             }
         };
-        checkSetupAndLoadBranding();
+        loadBranding();
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {

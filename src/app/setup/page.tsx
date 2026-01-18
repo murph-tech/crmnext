@@ -1,43 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function SetupPage() {
-    const router = useRouter();
     const { login } = useAuth();
-    const [status, setStatus] = useState<'loading' | 'setup' | 'redirect'>('loading');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState(false);
     const [formData, setFormData] = useState({
         name: '',
         email: '',
         password: '',
         confirmPassword: '',
     });
-
-    useEffect(() => {
-        checkSetupStatus();
-    }, []);
-
-    const checkSetupStatus = async () => {
-        try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'}/auth/setup/check`);
-            const data = await response.json();
-
-            if (data.needsSetup) {
-                setStatus('setup');
-            } else {
-                setStatus('redirect');
-                // Use replace to prevent back button loop
-                window.location.replace('/login');
-            }
-        } catch (err) {
-            // If API fails, show setup form anyway
-            setStatus('setup');
-        }
-    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -69,12 +45,21 @@ export default function SetupPage() {
             const data = await response.json();
 
             if (!response.ok) {
+                if (data.error?.includes('already')) {
+                    // Setup already done, redirect to login
+                    window.location.href = '/login';
+                    return;
+                }
                 throw new Error(data.error || 'Setup failed');
             }
 
+            setSuccess(true);
+
             if (data.token && data.user) {
-                login(data.token, data.user);
-                window.location.replace('/');
+                setTimeout(() => {
+                    login(data.token, data.user);
+                    window.location.href = '/';
+                }, 1000);
             }
         } catch (err: any) {
             setError(err.message || 'Setup failed');
@@ -83,10 +68,14 @@ export default function SetupPage() {
         }
     };
 
-    if (status === 'loading' || status === 'redirect') {
+    if (success) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-                <div className="text-white text-lg">Loading...</div>
+                <div className="text-center">
+                    <div className="text-6xl mb-4">🎉</div>
+                    <h1 className="text-2xl font-bold text-white">Admin Created!</h1>
+                    <p className="text-slate-400 mt-2">Redirecting to dashboard...</p>
+                </div>
             </div>
         );
     }
@@ -168,6 +157,10 @@ export default function SetupPage() {
                             {isSubmitting ? 'Creating...' : '🔐 Create Admin Account'}
                         </button>
                     </form>
+
+                    <p className="text-center text-slate-500 text-sm mt-6">
+                        Already have an account? <a href="/login" className="text-blue-400 hover:underline">Sign in</a>
+                    </p>
                 </div>
             </div>
         </div>
