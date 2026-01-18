@@ -8,9 +8,8 @@ const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const index_1 = require("../index");
 const auth_middleware_1 = require("../middleware/auth.middleware");
 const router = (0, express_1.Router)();
-// All routes require authentication and ADMIN role
+// All routes require authentication
 router.use(auth_middleware_1.authenticate);
-router.use((0, auth_middleware_1.authorize)('ADMIN'));
 // Get all users
 router.get('/', async (req, res, next) => {
     try {
@@ -72,7 +71,8 @@ router.get('/:id', async (req, res, next) => {
     }
 });
 // Create user
-router.post('/', async (req, res, next) => {
+// Create user (Admin only)
+router.post('/', (0, auth_middleware_1.authorize)('ADMIN'), async (req, res, next) => {
     try {
         const { email, password, name, role } = req.body;
         // Validate required fields
@@ -111,7 +111,8 @@ router.post('/', async (req, res, next) => {
     }
 });
 // Update user
-router.put('/:id', async (req, res, next) => {
+// Update user (Admin only)
+router.put('/:id', (0, auth_middleware_1.authorize)('ADMIN'), async (req, res, next) => {
     try {
         const { email, name, role, password } = req.body;
         const userId = String(req.params.id);
@@ -162,7 +163,8 @@ router.put('/:id', async (req, res, next) => {
     }
 });
 // Delete user
-router.delete('/:id', async (req, res, next) => {
+// Delete user (Admin only)
+router.delete('/:id', (0, auth_middleware_1.authorize)('ADMIN'), async (req, res, next) => {
     try {
         const userId = String(req.params.id);
         // Prevent self-deletion

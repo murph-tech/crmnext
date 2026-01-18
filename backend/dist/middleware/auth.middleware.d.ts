@@ -11,11 +11,31 @@ export declare const authorize: (...roles: string[]) => (req: AuthRequest, res: 
 export declare const getOwnerFilter: (user: AuthRequest["user"]) => {
     ownerId?: undefined;
 } | {
-    ownerId: string | undefined;
+    ownerId: string;
 };
 export declare const getUserFilter: (user: AuthRequest["user"]) => {
     userId?: undefined;
 } | {
-    userId: string | undefined;
+    userId: string;
+};
+export declare const getDealAccessFilter: (user: AuthRequest["user"]) => {
+    ownerId?: undefined;
+    OR?: undefined;
+} | {
+    ownerId: string;
+    OR?: undefined;
+} | {
+    OR: ({
+        ownerId: string;
+        salesTeam?: undefined;
+    } | {
+        salesTeam: {
+            some: {
+                id: string;
+            };
+        };
+        ownerId?: undefined;
+    })[];
+    ownerId?: undefined;
 };
 //# sourceMappingURL=auth.middleware.d.ts.map

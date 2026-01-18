@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserFilter = exports.getOwnerFilter = exports.authorize = exports.authenticate = void 0;
+exports.getDealAccessFilter = exports.getUserFilter = exports.getOwnerFilter = exports.authorize = exports.authenticate = void 0;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const index_1 = require("../index");
 const authenticate = async (req, res, next) => {
@@ -49,7 +49,10 @@ const getOwnerFilter = (user) => {
     if (user?.role === 'ADMIN') {
         return {}; // Admin sees all
     }
-    return { ownerId: user?.id };
+    if (!user?.id) {
+        return { ownerId: 'unauthorized' }; // Return invalid ID to ensure no results
+    }
+    return { ownerId: user.id };
 };
 exports.getOwnerFilter = getOwnerFilter;
 // Helper to build user filter with Admin bypass
@@ -58,7 +61,26 @@ const getUserFilter = (user) => {
     if (user?.role === 'ADMIN') {
         return {}; // Admin sees all
     }
-    return { userId: user?.id };
+    if (!user?.id) {
+        return { userId: 'unauthorized' }; // Return invalid ID to ensure no results
+    }
+    return { userId: user.id };
 };
 exports.getUserFilter = getUserFilter;
+// Helper for Deal access (Owner OR Sales Team Member)
+const getDealAccessFilter = (user) => {
+    if (user?.role === 'ADMIN') {
+        return {};
+    }
+    if (!user?.id) {
+        return { ownerId: 'unauthorized' };
+    }
+    return {
+        OR: [
+            { ownerId: user.id },
+            { salesTeam: { some: { id: user.id } } }
+        ]
+    };
+};
+exports.getDealAccessFilter = getDealAccessFilter;
 //# sourceMappingURL=auth.middleware.js.map

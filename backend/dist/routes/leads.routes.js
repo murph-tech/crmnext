@@ -28,6 +28,7 @@ router.get('/', async (req, res, next) => {
             orderBy: { createdAt: 'desc' },
             include: {
                 _count: { select: { activities: true } },
+                owner: { select: { id: true, name: true, email: true } },
             },
         });
         res.json(leads);
@@ -136,6 +137,13 @@ router.post('/:id/convert', async (req, res, next) => {
         });
         if (!lead) {
             return res.status(404).json({ error: 'Lead not found' });
+        }
+        // Check if contact with same email already exists
+        const existingContact = await index_1.prisma.contact.findFirst({
+            where: { email: lead.email },
+        });
+        if (existingContact) {
+            return res.status(400).json({ error: 'Contact with this email already exists' });
         }
         // Create contact from lead
         const contact = await index_1.prisma.contact.create({
