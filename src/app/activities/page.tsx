@@ -55,7 +55,7 @@ export default function ActivitiesPage() {
             } else {
                 data = await api.getActivities(token!);
                 if (filter === 'COMPLETED') {
-                    data = (data as Activity[]).filter((a) => a.completed);
+                    data = data.filter((a: any) => a.completed);
                 }
             }
             setActivities(data);
