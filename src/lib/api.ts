@@ -286,11 +286,11 @@ class ApiClient {
 
     // Activities
     async getActivities(token: string) {
-        return this.request<Activity[]>('/api/activities', { token });
+        return this.request<any[]>('/api/activities', { token });
     }
 
     async getUpcomingActivities(token: string) {
-        return this.request<Activity[]>('/api/activities/upcoming', { token });
+        return this.request<any[]>('/api/activities/upcoming', { token });
     }
 
     async createActivity(token: string, data: Partial<Activity>) {
