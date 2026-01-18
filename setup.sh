@@ -89,6 +89,7 @@ fi
 if [ -d "$APP_DIR" ]; then
     echo "Pulling latest changes..."
     cd $APP_DIR
+    git reset --hard HEAD
     git pull
 else
     git clone $GIT_REPO $APP_DIR
