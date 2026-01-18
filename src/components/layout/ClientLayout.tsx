@@ -11,14 +11,14 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     const pathname = usePathname();
     const router = useRouter();
 
-    const isLoginPage = pathname === '/login';
+    const isPublicPage = pathname === '/login' || pathname === '/setup';
 
-    // Redirect to login if not authenticated
+    // Redirect to login if not authenticated (except for public pages)
     useEffect(() => {
-        if (!isLoading && !isAuthenticated && !isLoginPage) {
+        if (!isLoading && !isAuthenticated && !isPublicPage) {
             router.push('/login');
         }
-    }, [isAuthenticated, isLoading, isLoginPage, router]);
+    }, [isAuthenticated, isLoading, isPublicPage, router]);
 
     // Show loading state
     if (isLoading) {
@@ -29,8 +29,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         );
     }
 
-    // Login page - no main layout
-    if (isLoginPage) {
+    // Public pages - no main layout
+    if (isPublicPage) {
         return <>{children}</>;
     }
 
@@ -42,3 +42,4 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     // Authenticated - show main layout
     return <MainLayout>{children}</MainLayout>;
 }
+

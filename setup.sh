@@ -121,6 +121,7 @@ EOF
     npm install
     npx prisma generate
     npx prisma migrate deploy
+    npm run db:seed
     npm run build
     cd ..
 
