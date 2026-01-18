@@ -24,7 +24,7 @@ export default function LoginPage() {
                 if (setupResponse.ok) {
                     const setupData = await setupResponse.json();
                     if (setupData.needsSetup) {
-                        window.location.href = '/setup';
+                        window.location.replace('/setup');
                         return;
                     }
                 }
