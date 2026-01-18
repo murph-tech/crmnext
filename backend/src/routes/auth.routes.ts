@@ -6,6 +6,70 @@ import { authenticate, AuthRequest } from '../middleware/auth.middleware';
 
 const router = Router();
 
+// Check if setup is needed (no users exist)
+router.get('/setup/check', async (req, res, next) => {
+    try {
+        const userCount = await prisma.user.count();
+        res.json({
+            needsSetup: userCount === 0,
+            userCount
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Initial setup - create first admin user
+router.post('/setup', async (req, res, next) => {
+    try {
+        // Check if any user already exists
+        const userCount = await prisma.user.count();
+        if (userCount > 0) {
+            return res.status(400).json({ error: 'Setup already completed. Admin user exists.' });
+        }
+
+        const { email, password, name } = req.body;
+
+        if (!email || !password || !name) {
+            return res.status(400).json({ error: 'Email, password, and name are required' });
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 12);
+
+        // Create admin user
+        const user = await prisma.user.create({
+            data: {
+                email,
+                password: hashedPassword,
+                name,
+                role: 'ADMIN', // First user is always admin
+            },
+            select: {
+                id: true,
+                email: true,
+                name: true,
+                role: true,
+            },
+        });
+
+        // Generate token
+        const token = jwt.sign(
+            { userId: user.id, email: user.email, role: user.role },
+            process.env.JWT_SECRET || 'your-secret-key',
+            { expiresIn: '7d' }
+        );
+
+        res.status(201).json({
+            message: 'Admin user created successfully',
+            user,
+            token
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
 // Register
 router.post('/register', async (req, res, next) => {
     try {
