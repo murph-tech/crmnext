@@ -138,7 +138,7 @@ export default function DealDetailPage() {
     const handleUpdateTeam = async (salesTeamIds: string[]) => {
         if (!deal) return;
         try {
-            await api.updateDeal(token!, deal.id, { salesTeamIds });
+            await api.updateDeal(token!, deal.id, { salesTeamIds } as any);
             await loadDeal();
             setShowTeamModal(false);
         } catch (error) {
