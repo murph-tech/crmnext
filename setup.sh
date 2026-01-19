@@ -75,9 +75,34 @@ elif [ "$MODE" = "2" ]; then
 
     echo -e "${GREEN}[2/5] Updating Backend...${NC}"
     cd backend
+    
+    # Backup database before migration
+    if [ -f ".env" ]; then
+        echo -e "${YELLOW}Creating database backup...${NC}"
+        DB_URL=$(grep DATABASE_URL .env | cut -d '"' -f 2)
+        DB_NAME=$(echo $DB_URL | sed 's/.*\/\([^?]*\).*/\1/')
+        BACKUP_FILE="/tmp/${APP_DIR}_backup_$(date +%Y%m%d_%H%M%S).sql"
+        pg_dump -h localhost -U postgres $DB_NAME > $BACKUP_FILE 2>/dev/null || true
+        if [ -f "$BACKUP_FILE" ] && [ -s "$BACKUP_FILE" ]; then
+            echo -e "${GREEN}Backup saved: $BACKUP_FILE${NC}"
+        fi
+    fi
+    
     npm install --legacy-peer-deps
     npx prisma generate
-    npx prisma migrate deploy 2>/dev/null || npx prisma db push
+    
+    # Safe migration - only apply migrations, don't reset
+    echo -e "${YELLOW}Applying database migrations (safe mode)...${NC}"
+    npx prisma migrate deploy 2>/dev/null
+    MIGRATE_STATUS=$?
+    
+    if [ $MIGRATE_STATUS -ne 0 ]; then
+        echo -e "${YELLOW}Migration deploy failed. Attempting safe schema sync...${NC}"
+        # Use db push with no data loss protection
+        npx prisma db push --skip-generate 2>&1 | head -20
+        echo -e "${YELLOW}If data loss warning appeared, please restore from backup: $BACKUP_FILE${NC}"
+    fi
+    
     npm run build
     cd ..
 

@@ -400,7 +400,7 @@ class ApiClient {
         return this.request<User>(`/api/users/${id}`, { token });
     }
 
-    async createUser(token: string, data: { email: string; password: string; name: string; role?: string }) {
+    async createUser(token: string, data: { username: string; email: string; password: string; name: string; role?: string }) {
         return this.request<User>('/api/users', {
             method: 'POST',
             body: JSON.stringify(data),

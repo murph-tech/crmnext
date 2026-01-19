@@ -33,6 +33,7 @@ export default function UsersPage() {
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
     const [form, setForm] = useState({
+        username: '',
         email: '',
         password: '',
         name: '',
@@ -60,6 +61,7 @@ export default function UsersPage() {
         if (existingUser) {
             setEditingUser(existingUser);
             setForm({
+                username: existingUser.username || '',
                 email: existingUser.email,
                 password: '',
                 name: existingUser.name,
@@ -67,7 +69,7 @@ export default function UsersPage() {
             });
         } else {
             setEditingUser(null);
-            setForm({ email: '', password: '', name: '', role: 'USER' });
+            setForm({ username: '', email: '', password: '', name: '', role: 'USER' });
         }
         setShowModal(true);
     };
@@ -289,6 +291,25 @@ export default function UsersPage() {
                             </div>
 
                             <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                                {/* Username - only for new users */}
+                                {!editingUser && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Username</label>
+                                        <div className="relative">
+                                            <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                                            <input
+                                                type="text"
+                                                value={form.username}
+                                                onChange={e => setForm({ ...form, username: e.target.value })}
+                                                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                                                placeholder="johndoe"
+                                                required
+                                            />
+                                        </div>
+                                        <p className="text-xs text-gray-400 mt-1">Used for login</p>
+                                    </div>
+                                )}
+
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name</label>
                                     <div className="relative">
