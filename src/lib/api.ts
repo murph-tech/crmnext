@@ -372,7 +372,7 @@ class ApiClient {
 
     // Settings
     async getSettings(token: string) {
-        return this.request<SystemSetting[]>('/api/settings', { token });
+        return this.request<Record<string, any>>('/api/settings', { token });
     }
 
     async saveSetting(token: string, key: string, value: any) {

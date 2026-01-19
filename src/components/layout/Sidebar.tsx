@@ -48,7 +48,7 @@ export default function Sidebar({ isCollapsed, onToggle, isMobile, isOpen, onClo
 
   useEffect(() => {
     if (token) {
-      api.getSettings(token).then(settings => {
+      api.getSettings(token).then((settings: Record<string, any>) => {
         if (settings.branding) {
           setBranding({
             appName: settings.branding.appName || 'CRM Pro',
