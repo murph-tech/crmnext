@@ -1,34 +1,70 @@
 #!/bin/bash
 
-# --- Configuration ---
+# --- CRM Next Setup & Upgrade Script ---
+# Version: 2.0.0
+# Date: 2026-01-19
+# Features: Quotation System, Multi-language, Activity Logging
+
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${GREEN}=== CRM Server Setup & Upgrade Script ===${NC}"
+APP_VERSION="2.0.0"
+
+echo -e "${BLUE}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║${NC}     ${GREEN}CRM Next Server Setup & Upgrade Script${NC}                    ${BLUE}║${NC}"
+echo -e "${BLUE}║${NC}     Version: ${YELLOW}$APP_VERSION${NC}                                         ${BLUE}║${NC}"
+echo -e "${BLUE}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo ""
 echo -e "${YELLOW}Please select operation mode:${NC}"
 echo "1) Fresh Installation (New Setup)"
 echo "2) Update Existing Application (Preserve Data)"
-read -p "Enter Choice (1 or 2): " MODE
+echo "3) Migration Only (Database Schema Update)"
+read -p "Enter Choice (1, 2, or 3): " MODE
 
-if [ "$MODE" = "2" ]; then
+if [ "$MODE" = "3" ]; then
+    # --- MIGRATION ONLY ---
+    echo -e "${YELLOW}--- DATABASE MIGRATION MODE ---${NC}"
+    read -p "Enter App Directory Name (existing folder): " APP_DIR
+    
+    if [ ! -d "$APP_DIR" ]; then
+        echo -e "${RED}Error: Directory $APP_DIR does not exist.${NC}"
+        exit 1
+    fi
+
+    cd $APP_DIR/backend
+    
+    echo -e "${GREEN}Running database migrations...${NC}"
+    npx prisma generate
+    npx prisma migrate deploy 2>/dev/null || npx prisma db push
+    
+    echo -e "${GREEN}Restarting backend service...${NC}"
+    pm2 restart "${APP_DIR}-backend"
+    
+    echo -e "${GREEN}Migration Complete!${NC}"
+    exit 0
+
+elif [ "$MODE" = "2" ]; then
     # --- UPDATE MODE ---
     echo -e "${YELLOW}--- UPDATE MODE ---${NC}"
     read -p "Enter App Directory Name (existing folder): " APP_DIR
     
     if [ ! -d "$APP_DIR" ]; then
-        echo "Error: Directory $APP_DIR does not exist."
+        echo -e "${RED}Error: Directory $APP_DIR does not exist.${NC}"
         exit 1
     fi
 
-    echo -e "Targetting: $APP_DIR"
+    echo -e "Targetting: ${BLUE}$APP_DIR${NC}"
     echo -e "${YELLOW}Warning: This will pull the latest code and restart services.${NC}"
-    echo -e "Database data and .env files will be PRESERVED."
+    echo -e "Database data and .env files will be ${GREEN}PRESERVED${NC}."
     read -p "Press ENTER to continue..."
 
     cd $APP_DIR
     
-    echo -e "${GREEN}[1/4] Updating Source Code...${NC}"
+    echo -e "${GREEN}[1/5] Updating Source Code...${NC}"
+    git stash 2>/dev/null || true
     git fetch --all
     git reset --hard origin/main
     
@@ -37,35 +73,54 @@ if [ "$MODE" = "2" ]; then
     fi
     BACKEND_PORT=${PORT:-4000}
 
-    echo -e "${GREEN}[2/4] Updating Backend...${NC}"
+    echo -e "${GREEN}[2/5] Updating Backend...${NC}"
     cd backend
-    npm install
+    npm install --legacy-peer-deps
     npx prisma generate
     npx prisma migrate deploy 2>/dev/null || npx prisma db push
     npm run build
     cd ..
 
-    echo -e "${GREEN}[3/4] Updating Frontend...${NC}"
+    echo -e "${GREEN}[3/5] Updating Frontend...${NC}"
     rm -rf .next
-    npm install
+    npm install --legacy-peer-deps
     npm run build
     
     # Copy static files for standalone
-    cp -r .next/static .next/standalone/.next/
-    cp -r public .next/standalone/ 2>/dev/null || true
+    if [ -d ".next/standalone" ]; then
+        cp -r .next/static .next/standalone/.next/
+        cp -r public .next/standalone/ 2>/dev/null || true
+    fi
 
-    echo -e "${GREEN}[4/4] Restarting Services...${NC}"
+    echo -e "${GREEN}[4/5] Restarting Services...${NC}"
     pm2 delete "${APP_DIR}-backend" 2>/dev/null || true
     pm2 delete "${APP_DIR}-frontend" 2>/dev/null || true
+    
+    # Also try with common naming conventions
+    pm2 delete "crmnext-backend" 2>/dev/null || true
+    pm2 delete "crmnext-frontend" 2>/dev/null || true
     
     cd backend
     PORT=$BACKEND_PORT pm2 start npm --name "${APP_DIR}-backend" -- run start
     cd ..
     
-    PORT=3001 pm2 start .next/standalone/server.js --name "${APP_DIR}-frontend"
+    # Check if standalone exists
+    if [ -f ".next/standalone/server.js" ]; then
+        PORT=3001 pm2 start .next/standalone/server.js --name "${APP_DIR}-frontend"
+    else
+        PORT=3001 pm2 start npm --name "${APP_DIR}-frontend" -- run start
+    fi
     
     pm2 save
-    echo -e "${GREEN}Update Complete!${NC}"
+
+    echo -e "${GREEN}[5/5] Verifying Services...${NC}"
+    sleep 3
+    pm2 list
+    
+    echo -e ""
+    echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║${NC}  Update Complete! Version: ${YELLOW}$APP_VERSION${NC}                         ${GREEN}║${NC}"
+    echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
     exit 0
 
 else
@@ -128,7 +183,7 @@ FRONTEND_URL="http://$DOMAIN_NAME:$NGINX_PORT"
 JWT_SECRET="$(openssl rand -base64 32)"
 EOF
 
-    npm install
+    npm install --legacy-peer-deps
     npx prisma generate
     npx prisma db push --force-reset
     npm run db:seed
@@ -136,18 +191,19 @@ EOF
     cd ..
 
     echo -e "${GREEN}[5/8] Installing Frontend...${NC}"
-    # Note: NEXT_PUBLIC_API_URL should NOT include /api because code already adds /api
     cat > .env.production << EOF
 NEXT_PUBLIC_API_URL="http://$DOMAIN_NAME:$NGINX_PORT"
 PORT=$APP_PORT
 EOF
 
-    npm install
+    npm install --legacy-peer-deps
     npm run build
     
     # Copy static files for standalone mode
-    cp -r .next/static .next/standalone/.next/
-    cp -r public .next/standalone/ 2>/dev/null || true
+    if [ -d ".next/standalone" ]; then
+        cp -r .next/static .next/standalone/.next/
+        cp -r public .next/standalone/ 2>/dev/null || true
+    fi
 
     echo -e "${GREEN}[6/8] Starting Services with PM2...${NC}"
     sudo npm install -g pm2
@@ -156,8 +212,12 @@ EOF
     PORT=$BACKEND_PORT pm2 start npm --name "${APP_DIR}-backend" -- run start
     cd ..
     
-    # Use standalone server for Next.js
-    PORT=$APP_PORT pm2 start .next/standalone/server.js --name "${APP_DIR}-frontend"
+    # Use standalone server for Next.js if available
+    if [ -f ".next/standalone/server.js" ]; then
+        PORT=$APP_PORT pm2 start .next/standalone/server.js --name "${APP_DIR}-frontend"
+    else
+        PORT=$APP_PORT pm2 start npm --name "${APP_DIR}-frontend" -- run start
+    fi
     
     pm2 save
     pm2 startup
@@ -168,6 +228,8 @@ server {
     listen $NGINX_PORT;
     server_name $DOMAIN_NAME;
 
+    client_max_body_size 10M;
+
     location / {
         proxy_pass http://localhost:$APP_PORT;
         proxy_http_version 1.1;
@@ -175,6 +237,8 @@ server {
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host \$host;
         proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
     }
 
     location /api {
@@ -184,6 +248,8 @@ server {
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host \$host;
         proxy_cache_bypass \$http_upgrade;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 300s;
     }
 }
 EOF"
@@ -192,12 +258,22 @@ EOF"
     sudo systemctl restart nginx
 
     echo -e "${GREEN}[8/8] Installation Complete!${NC}"
-    echo -e "${GREEN}============================================${NC}"
-    echo -e "App URL: ${YELLOW}http://$DOMAIN_NAME:$NGINX_PORT${NC}"
-    echo -e "API URL: ${YELLOW}http://$DOMAIN_NAME:$NGINX_PORT/api${NC}"
-    echo ""
-    echo -e "${GREEN}Default Login Credentials:${NC}"
-    echo -e "   Username: ${YELLOW}admin${NC}"
-    echo -e "   Password: ${YELLOW}crm@123${NC}"
-    echo -e "${GREEN}============================================${NC}"
+    echo -e ""
+    echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║${NC}     ${BLUE}CRM Next Installation Complete!${NC}                          ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}     Version: ${YELLOW}$APP_VERSION${NC}                                         ${GREEN}║${NC}"
+    echo -e "${GREEN}╠══════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${GREEN}║${NC}  App URL: ${YELLOW}http://$DOMAIN_NAME:$NGINX_PORT${NC}"
+    echo -e "${GREEN}║${NC}  API URL: ${YELLOW}http://$DOMAIN_NAME:$NGINX_PORT/api${NC}"
+    echo -e "${GREEN}╠══════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${GREEN}║${NC}  ${BLUE}Default Login Credentials:${NC}                                  ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}     Username: ${YELLOW}admin${NC}                                          ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}     Password: ${YELLOW}crm@123${NC}                                        ${GREEN}║${NC}"
+    echo -e "${GREEN}╠══════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${GREEN}║${NC}  ${BLUE}New Features in v2.0:${NC}                                        ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}   • Quotation System (Thai/English)                            ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}   • Product Price Editing                                      ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}   • Company Info Settings                                      ${GREEN}║${NC}"
+    echo -e "${GREEN}║${NC}   • Activity Logging (Quotation Type)                          ${GREEN}║${NC}"
+    echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${NC}"
 fi
