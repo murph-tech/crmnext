@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, User, Bell, Shield, Palette, X, Loader2, Save, Key, Mail, Lock, Link, Server, CheckCircle2, AlertCircle, Users } from 'lucide-react';
+import { Settings, User, Bell, Shield, Palette, X, Loader2, Save, Key, Mail, Lock, Link, Server, CheckCircle2, AlertCircle, Users, Building2, Upload } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 const settingsSections = [
     { id: 'profile', icon: User, label: 'Profile', desc: 'Manage your account details' },
+    { id: 'company', icon: Building2, label: 'Company Info', desc: 'ข้อมูลบริษัทสำหรับเอกสาร' },
     { id: 'users', icon: Users, label: 'User Management', desc: 'Manage team members', adminOnly: true },
     { id: 'notifications', icon: Bell, label: 'Notifications', desc: 'Configure alert preferences' },
     { id: 'security', icon: Shield, label: 'Security', desc: 'Password and authentication' },
@@ -58,6 +59,23 @@ export default function SettingsPage() {
     const [brandingForm, setBrandingForm] = useState({ appName: 'CRM Pro', logo: '' });
     const [isBrandingSubmitting, setIsBrandingSubmitting] = useState(false);
 
+    // Company Info Form State
+    const [companyForm, setCompanyForm] = useState({
+        company_name_th: '',
+        company_name_en: '',
+        company_address_th: '',
+        company_address_en: '',
+        company_tax_id: '',
+        company_phone: '',
+        company_email: '',
+        company_logo: '',  // Base64 image - Logo
+        company_stamp: '', // Base64 image - Stamp
+        bank_name: '',
+        bank_account: '',
+        bank_branch: '',
+    });
+    const [isCompanySubmitting, setIsCompanySubmitting] = useState(false);
+
     // Initial load user data & settings
     useEffect(() => {
         if (user) {
@@ -74,7 +92,7 @@ export default function SettingsPage() {
 
     const loadSettings = async () => {
         try {
-            const settings = await api.getSettings(token!);
+            const settings = await api.getSettings(token!) as Record<string, any>;
             if (settings.smtp_config) {
                 setSmtpForm(settings.smtp_config);
             }
@@ -83,6 +101,9 @@ export default function SettingsPage() {
                     appName: settings.branding.appName || 'CRM Pro',
                     logo: settings.branding.logo || ''
                 });
+            }
+            if (settings.company_info) {
+                setCompanyForm(prev => ({ ...prev, ...settings.company_info }));
             }
         } catch (error) {
             console.error('Failed to load settings:', error);
@@ -124,6 +145,42 @@ export default function SettingsPage() {
             alert(error.message || 'Failed to save branding settings');
         } finally {
             setIsBrandingSubmitting(false);
+        }
+    };
+
+    const handleCompanyLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setCompanyForm(prev => ({ ...prev, company_logo: reader.result as string }));
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleStampChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setCompanyForm(prev => ({ ...prev, company_stamp: reader.result as string }));
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleSaveCompany = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsCompanySubmitting(true);
+        try {
+            await api.saveSetting(token!, 'company_info', companyForm);
+            alert('บันทึกข้อมูลบริษัทสำเร็จ');
+            setActiveModal(null);
+        } catch (error: any) {
+            alert(error.message || 'Failed to save company info');
+        } finally {
+            setIsCompanySubmitting(false);
         }
     };
 
@@ -313,6 +370,210 @@ export default function SettingsPage() {
                                             >
                                                 {isProfileSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                                                 Save Changes
+                                            </button>
+                                        </div>
+                                    </form>
+                                )}
+
+                                {activeModal === 'company' && (
+                                    <form onSubmit={handleSaveCompany} className="space-y-4">
+                                        {/* Company Logo */}
+                                        <div className="flex justify-center mb-4">
+                                            <div className="text-center">
+                                                <div className="w-24 h-24 mx-auto rounded-2xl bg-gray-50 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden relative group cursor-pointer hover:border-blue-500 transition-colors">
+                                                    {companyForm.company_logo ? (
+                                                        <img src={companyForm.company_logo} alt="Logo" className="w-full h-full object-contain p-2" />
+                                                    ) : (
+                                                        <div className="text-gray-400 flex flex-col items-center">
+                                                            <Building2 size={24} className="mb-1" />
+                                                            <span className="text-[10px]">อัปโหลดโลโก้</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-medium pointer-events-none">
+                                                        เปลี่ยน
+                                                    </div>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={handleCompanyLogoChange}
+                                                        className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                                    />
+                                                </div>
+                                                <p className="text-xs text-gray-500 mt-2">โลโก้บริษัท (200x200px)</p>
+                                                {companyForm.company_logo && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setCompanyForm({ ...companyForm, company_logo: '' })}
+                                                        className="text-red-500 text-xs mt-1 hover:underline"
+                                                    >
+                                                        ลบโลโก้
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Company Names */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1.5">ชื่อบริษัท (ภาษาไทย)</label>
+                                                <input
+                                                    type="text"
+                                                    value={companyForm.company_name_th}
+                                                    onChange={e => setCompanyForm({ ...companyForm, company_name_th: e.target.value })}
+                                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                                                    placeholder="บริษัท ตัวอย่าง จำกัด"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Company Name (English)</label>
+                                                <input
+                                                    type="text"
+                                                    value={companyForm.company_name_en}
+                                                    onChange={e => setCompanyForm({ ...companyForm, company_name_en: e.target.value })}
+                                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                                                    placeholder="Example Co., Ltd."
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Addresses */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1.5">ที่อยู่ (ภาษาไทย)</label>
+                                            <textarea
+                                                value={companyForm.company_address_th}
+                                                onChange={e => setCompanyForm({ ...companyForm, company_address_th: e.target.value })}
+                                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                                                rows={2}
+                                                placeholder="123 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพฯ 10110"
+                                            />
+                                        </div>
+
+                                        {/* Tax ID & Contact */}
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1.5">เลขผู้เสียภาษี</label>
+                                                <input
+                                                    type="text"
+                                                    value={companyForm.company_tax_id}
+                                                    onChange={e => setCompanyForm({ ...companyForm, company_tax_id: e.target.value })}
+                                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                                                    placeholder="0-1234-56789-01-2"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1.5">เบอร์โทรศัพท์</label>
+                                                <input
+                                                    type="text"
+                                                    value={companyForm.company_phone}
+                                                    onChange={e => setCompanyForm({ ...companyForm, company_phone: e.target.value })}
+                                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                                                    placeholder="02-123-4567"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1.5">อีเมลบริษัท</label>
+                                            <input
+                                                type="email"
+                                                value={companyForm.company_email}
+                                                onChange={e => setCompanyForm({ ...companyForm, company_email: e.target.value })}
+                                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                                                placeholder="info@company.com"
+                                            />
+                                        </div>
+
+                                        {/* Bank Info */}
+                                        <div className="border-t border-gray-100 pt-4 mt-4">
+                                            <h4 className="text-sm font-medium text-gray-800 mb-3">ข้อมูลธนาคาร (สำหรับใบเสนอราคา)</h4>
+                                            <div className="grid grid-cols-3 gap-3">
+                                                <div>
+                                                    <label className="block text-xs text-gray-500 mb-1">ชื่อธนาคาร</label>
+                                                    <input
+                                                        type="text"
+                                                        value={companyForm.bank_name}
+                                                        onChange={e => setCompanyForm({ ...companyForm, bank_name: e.target.value })}
+                                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-sm"
+                                                        placeholder="ธนาคารไทยพาณิชย์"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs text-gray-500 mb-1">เลขบัญชี</label>
+                                                    <input
+                                                        type="text"
+                                                        value={companyForm.bank_account}
+                                                        onChange={e => setCompanyForm({ ...companyForm, bank_account: e.target.value })}
+                                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-sm"
+                                                        placeholder="123-456-7890"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs text-gray-500 mb-1">สาขา</label>
+                                                    <input
+                                                        type="text"
+                                                        value={companyForm.bank_branch}
+                                                        onChange={e => setCompanyForm({ ...companyForm, bank_branch: e.target.value })}
+                                                        className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:border-blue-500 outline-none text-sm"
+                                                        placeholder="สาขาสีลม"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Company Stamp */}
+                                        <div className="border-t border-gray-100 pt-4 mt-4">
+                                            <h4 className="text-sm font-medium text-gray-800 mb-3">ตราประทับบริษัท</h4>
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-32 h-32 rounded-xl bg-gray-50 border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden relative group cursor-pointer hover:border-blue-500 transition-colors">
+                                                    {companyForm.company_stamp ? (
+                                                        <img src={companyForm.company_stamp} alt="Stamp" className="w-full h-full object-contain p-2" />
+                                                    ) : (
+                                                        <div className="text-gray-400 flex flex-col items-center">
+                                                            <Upload size={24} className="mb-1" />
+                                                            <span className="text-[10px]">อัปโหลด</span>
+                                                        </div>
+                                                    )}
+                                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-medium pointer-events-none">
+                                                        เปลี่ยน
+                                                    </div>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={handleStampChange}
+                                                        className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                                                    />
+                                                </div>
+                                                <div className="text-sm text-gray-500">
+                                                    <p>อัปโหลดรูปตราประทับบริษัท</p>
+                                                    <p className="text-xs mt-1">แนะนำ: PNG พื้นหลังใส ขนาด 200x200px</p>
+                                                    {companyForm.company_stamp && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setCompanyForm({ ...companyForm, company_stamp: '' })}
+                                                            className="text-red-500 text-xs mt-2 hover:underline"
+                                                        >
+                                                            ลบตราประทับ
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-4 flex justify-end gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => setActiveModal(null)}
+                                                className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 rounded-xl transition-colors"
+                                            >
+                                                ยกเลิก
+                                            </button>
+                                            <button
+                                                type="submit"
+                                                disabled={isCompanySubmitting}
+                                                className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-blue-500/20"
+                                            >
+                                                {isCompanySubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                                บันทึก
                                             </button>
                                         </div>
                                     </form>

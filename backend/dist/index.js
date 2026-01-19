@@ -8,6 +8,9 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const client_1 = require("@prisma/client");
+const helmet_1 = __importDefault(require("helmet"));
+const hpp_1 = __importDefault(require("hpp"));
+const security_middleware_1 = require("./middleware/security.middleware");
 // Routes
 const auth_routes_1 = __importDefault(require("./routes/auth.routes"));
 const leads_routes_1 = __importDefault(require("./routes/leads.routes"));
@@ -35,6 +38,10 @@ app.use((0, cors_1.default)({
     ],
     credentials: true,
 }));
+// Security Middleware
+app.use((0, helmet_1.default)());
+app.use((0, hpp_1.default)());
+app.use('/api', security_middleware_1.apiLimiter); // Apply global rate limit to API routes
 app.use(express_1.default.json({ limit: '10mb' }));
 // Health check
 app.get('/health', (req, res) => {

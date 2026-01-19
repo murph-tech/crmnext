@@ -23,6 +23,7 @@ interface DealDetail {
     stage: string;
     probability: number;
     notes?: string;
+    quotationNumber?: string;
     expectedCloseDate?: string;
     contact?: {
         id: string;
@@ -53,7 +54,7 @@ interface Activity {
     id: string;
     title: string;
     description?: string;
-    type: 'CALL' | 'EMAIL' | 'MEETING' | 'NOTE' | 'TASK' | 'FOLLOW_UP';
+    type: 'CALL' | 'EMAIL' | 'MEETING' | 'NOTE' | 'TASK' | 'FOLLOW_UP' | 'QUOTATION';
     completed: boolean;
     duration?: number;
     scheduledAt?: string;
@@ -82,6 +83,7 @@ const ACTIVITY_CONFIG: Record<string, { icon: any; color: string; bgColor: strin
     MEETING: { icon: Video, color: 'text-purple-600', bgColor: 'bg-purple-100', label: 'Meeting' },
     NOTE: { icon: FileText, color: 'text-gray-600', bgColor: 'bg-gray-100', label: 'Note' },
     TASK: { icon: CheckCircle2, color: 'text-green-600', bgColor: 'bg-green-100', label: 'Task' },
+    QUOTATION: { icon: FileText, color: 'text-teal-600', bgColor: 'bg-teal-100', label: 'Quotation' },
 };
 
 export default function DealDetailPage() {
@@ -366,6 +368,13 @@ export default function DealDetailPage() {
                     {/* Action Toolbar */}
                     <div className="flex items-center gap-2 mb-4 flex-wrap">
                         <button
+                            onClick={() => router.push(`/quotations/${deal.id}`)}
+                            className="flex items-center gap-2 px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                        >
+                            <FileText size={16} />
+                            {deal.quotationNumber ? 'View Quotation' : 'Create Quotation'}
+                        </button>
+                        <button
                             onClick={() => setQuickActivityType('EMAIL')}
                             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-medium rounded-lg shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all"
                         >
@@ -401,7 +410,7 @@ export default function DealDetailPage() {
                                         className="absolute top-full left-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-20"
                                     >
                                         <div className="py-1">
-                                            {['ALL', 'COMPLETED', 'INCOMPLETE', 'CALL', 'EMAIL', 'MEETING', 'TASK'].map((type) => (
+                                            {['ALL', 'COMPLETED', 'INCOMPLETE', 'CALL', 'EMAIL', 'MEETING', 'TASK', 'QUOTATION'].map((type) => (
                                                 <button
                                                     key={type}
                                                     onClick={() => {

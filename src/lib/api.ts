@@ -8,7 +8,9 @@ import {
     Activity,
     Product,
     SalesPerformance,
-    Reminder
+    Reminder,
+    SystemSetting,
+    PipelineOverview
 } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -76,7 +78,7 @@ class ApiClient {
         });
     }
 
-    async changePassword(token: string, data: any) {
+    async changePassword(token: string, data: { currentPassword?: string; newPassword: string }) {
         return this.request<{ message: string }>('/api/auth/password', {
             method: 'PUT',
             body: JSON.stringify(data),
@@ -96,7 +98,7 @@ class ApiClient {
     }
 
     async getPipelineOverview(token: string) {
-        return this.request<any[]>('/api/dashboard/pipeline-overview', { token });
+        return this.request<PipelineOverview[]>('/api/dashboard/pipeline-overview', { token });
     }
 
     async getSalesPerformance(token: string) {
@@ -220,6 +222,15 @@ class ApiClient {
         return this.request<Deal>(`/api/deals/${id}`, { token });
     }
 
+    async generateQuotation(token: string, id: string) {
+        return this.request<Deal>(`/api/deals/${id}/quotation`, {
+            method: 'POST',
+            token
+        });
+    }
+
+
+
     async addDealItem(token: string, dealId: string, data: any) {
         return this.request<Deal>(`/api/deals/${dealId}/items`, {
             method: 'POST',
@@ -231,6 +242,14 @@ class ApiClient {
     async removeDealItem(token: string, dealId: string, itemId: string) {
         return this.request<Deal>(`/api/deals/${dealId}/items/${itemId}`, {
             method: 'DELETE',
+            token,
+        });
+    }
+
+    async updateDealItem(token: string, dealId: string, itemId: string, data: { price?: number; quantity?: number; discount?: number }) {
+        return this.request<Deal>(`/api/deals/${dealId}/items/${itemId}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
             token,
         });
     }
@@ -286,11 +305,11 @@ class ApiClient {
 
     // Activities
     async getActivities(token: string) {
-        return this.request<any[]>('/api/activities', { token });
+        return this.request<Activity[]>('/api/activities', { token });
     }
 
     async getUpcomingActivities(token: string) {
-        return this.request<any[]>('/api/activities/upcoming', { token });
+        return this.request<Activity[]>('/api/activities/upcoming', { token });
     }
 
     async createActivity(token: string, data: Partial<Activity>) {
@@ -353,7 +372,7 @@ class ApiClient {
 
     // Settings
     async getSettings(token: string) {
-        return this.request<any>('/api/settings', { token });
+        return this.request<SystemSetting[]>('/api/settings', { token });
     }
 
     async saveSetting(token: string, key: string, value: any) {

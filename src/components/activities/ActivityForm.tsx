@@ -10,7 +10,7 @@ interface ActivityFormProps {
     defaultType?: string;
 }
 
-const typeOptions = ['CALL', 'EMAIL', 'MEETING', 'TASK', 'NOTE'];
+const typeOptions = ['CALL', 'EMAIL', 'MEETING', 'TASK', 'NOTE', 'QUOTATION'];
 
 // Quick reminder options - value in minutes from NOW
 const quickReminderOptions = [

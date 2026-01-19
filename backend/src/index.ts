@@ -2,6 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+import helmet from 'helmet';
+import hpp from 'hpp';
+import { apiLimiter } from './middleware/security.middleware';
 
 // Routes
 import authRoutes from './routes/auth.routes';
@@ -23,6 +26,7 @@ dotenv.config();
 const app = express();
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
+// Force restart trigger
 
 // Middleware
 app.use(cors({
@@ -34,6 +38,12 @@ app.use(cors({
     ],
     credentials: true,
 }));
+
+// Security Middleware
+app.use(helmet());
+app.use(hpp());
+app.use('/api', apiLimiter); // Apply global rate limit to API routes
+
 app.use(express.json({ limit: '10mb' }));
 
 // Health check

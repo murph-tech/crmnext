@@ -217,6 +217,49 @@ router.delete('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
     }
 });
 
+// Update deal item (price, quantity, discount)
+router.put('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
+    try {
+        const dealId = req.params.id as string;
+        const itemId = req.params.itemId as string;
+        const { price, quantity, discount } = req.body;
+
+        // Verify deal ownership
+        const deal = await prisma.deal.findFirst({
+            where: { id: dealId, ...getOwnerFilter(req.user) },
+        });
+
+        if (!deal) return res.status(404).json({ error: 'Deal not found' });
+
+        // Update the item
+        await prisma.dealItem.update({
+            where: { id: itemId },
+            data: {
+                ...(price !== undefined && { price: parseFloat(price) }),
+                ...(quantity !== undefined && { quantity: parseInt(quantity) }),
+                ...(discount !== undefined && { discount: parseFloat(discount) }),
+            },
+        });
+
+        // Recalculate deal value
+        const items = await prisma.dealItem.findMany({ where: { dealId: dealId } });
+        const totalValue = items.reduce((sum: number, i: any) => sum + (i.price * i.quantity) - i.discount, 0);
+
+        const updatedDeal = await prisma.deal.update({
+            where: { id: dealId },
+            data: { value: totalValue },
+            include: {
+                items: { include: { product: true } },
+                contact: true,
+            }
+        });
+
+        res.json(updatedDeal);
+    } catch (error) {
+        next(error);
+    }
+});
+
 // Create deal
 router.post('/', async (req: AuthRequest, res, next) => {
     try {
@@ -400,6 +443,93 @@ router.get('/export/csv', async (req: AuthRequest, res, next) => {
         res.send(output);
     } catch (error) {
         next(error);
+    }
+});
+
+// Generate Quotation
+router.post('/:id/quotation', async (req: AuthRequest, res, next) => {
+    try {
+        const dealId = req.params.id as string;
+
+        // Check access - get full deal with relations
+        const existingDeal = await prisma.deal.findUnique({
+            where: { id: dealId },
+            include: {
+                contact: true,
+                owner: { select: { id: true, name: true, email: true } },
+                items: { include: { product: true } },
+            }
+        });
+
+        if (!existingDeal) return res.status(404).json({ error: 'Deal not found' });
+
+        // If already has quotation number, return full deal with relations
+        if (existingDeal.quotationNumber) {
+            return res.json(existingDeal);
+        }
+
+        // Generate Running Number: QT-YYYYMM-XXXX
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const prefix = `QT-${year}${month}`;
+
+        // Find latest running number to ensure uniqueness
+        const latestDeal = await prisma.deal.findFirst({
+            where: {
+                quotationNumber: {
+                    startsWith: prefix
+                }
+            },
+            orderBy: {
+                quotationNumber: 'desc'
+            }
+        });
+
+        let nextNum = 1;
+        if (latestDeal && latestDeal.quotationNumber) {
+            const parts = latestDeal.quotationNumber.split('-');
+            if (parts.length === 3) {
+                const lastNum = parseInt(parts[2]);
+                if (!isNaN(lastNum)) {
+                    nextNum = lastNum + 1;
+                }
+            }
+        }
+
+        const runningNumber = String(nextNum).padStart(4, '0');
+        const quotationNumber = `${prefix}-${runningNumber}`;
+
+        const validUntil = new Date(now);
+        validUntil.setDate(validUntil.getDate() + 30);
+
+        console.log(`Generating Quotation: ${quotationNumber} for Deal ${dealId}`);
+
+        // Update and return full deal with all relations
+        const updatedDeal = await prisma.deal.update({
+            where: { id: dealId },
+            data: {
+                quotationNumber,
+                quotationDate: now,
+                validUntil: validUntil,
+                creditTerm: 30
+            },
+            include: {
+                contact: true,
+                owner: { select: { id: true, name: true, email: true } },
+                items: { include: { product: true } },
+            }
+        });
+
+        console.log('Quotation generated successfully');
+        res.json(updatedDeal);
+    } catch (error: any) {
+        console.error('FAILED TO GENERATE QUOTATION:', error);
+        res.status(500).json({
+            error: 'Failed to generate quotation',
+            details: error.message,
+            stack: error.stack
+        });
     }
 });
 

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../index';
 import { authenticate, AuthRequest } from '../middleware/auth.middleware';
+import { authLimiter } from '../middleware/security.middleware';
 
 const router = Router();
 
@@ -73,17 +74,22 @@ router.post('/setup', async (req, res, next) => {
 });
 
 // Register
-router.post('/register', async (req, res, next) => {
+router.post('/register', authLimiter, async (req, res, next) => {
     try {
-        const { email, password, name } = req.body;
+        const { username, email, password, name } = req.body;
 
         // Check if user exists
-        const existingUser = await prisma.user.findUnique({
-            where: { email },
+        const existingUser = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { email },
+                    { username }
+                ]
+            },
         });
 
         if (existingUser) {
-            return res.status(400).json({ error: 'Email already registered' });
+            return res.status(400).json({ error: 'Email or Username already registered' });
         }
 
         // Hash password
@@ -92,6 +98,7 @@ router.post('/register', async (req, res, next) => {
         // Create user
         const user = await prisma.user.create({
             data: {
+                username,
                 email,
                 password: hashedPassword,
                 name,
@@ -118,7 +125,7 @@ router.post('/register', async (req, res, next) => {
 });
 
 // Login
-router.post('/login', async (req, res, next) => {
+router.post('/login', authLimiter, async (req, res, next) => {
     try {
         const { username, password } = req.body;
 

@@ -23,29 +23,17 @@ import ActivityTable from '@/components/dashboard/ActivityTable';
 import WonDealsChart from '@/components/dashboard/WonDealsChart';
 import DealsCountChart from '@/components/dashboard/DealsCountChart';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
+import { DashboardStats, Activity, Reminder } from '@/types';
 
 // ... (existing imports)
 
 
 
-interface DashboardStats {
-  totalRevenue: number;
-  newLeads: number;
-  activeDeals: number;
-  conversionRate: number;
-  totalLeads: number;
-  totalContacts: number;
-  totalDeals: number;
-  closedWonCount: number;
-  dealsProgress: number;
-  taskCompletionRate: number;
-}
-
 export default function DashboardPage() {
   const { token, user } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [activities, setActivities] = useState<any[]>([]);
-  const [reminders, setReminders] = useState<any[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [timeFrame, setTimeFrame] = useState('week');
 
   const [isLoading, setIsLoading] = useState(true);

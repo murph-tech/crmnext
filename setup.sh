@@ -41,7 +41,7 @@ if [ "$MODE" = "2" ]; then
     cd backend
     npm install
     npx prisma generate
-    npx prisma migrate deploy
+    npx prisma migrate deploy 2>/dev/null || npx prisma db push
     npm run build
     cd ..
 
@@ -49,10 +49,20 @@ if [ "$MODE" = "2" ]; then
     rm -rf .next
     npm install
     npm run build
+    
+    # Copy static files for standalone
+    cp -r .next/static .next/standalone/.next/
+    cp -r public .next/standalone/ 2>/dev/null || true
 
     echo -e "${GREEN}[4/4] Restarting Services...${NC}"
-    pm2 restart "${APP_DIR}-backend" || (cd backend && PORT=$BACKEND_PORT pm2 start npm --name "${APP_DIR}-backend" -- run start && cd ..)
-    pm2 restart "${APP_DIR}-frontend" || (PORT=3001 pm2 start npm --name "${APP_DIR}-frontend" -- run start)
+    pm2 delete "${APP_DIR}-backend" 2>/dev/null || true
+    pm2 delete "${APP_DIR}-frontend" 2>/dev/null || true
+    
+    cd backend
+    PORT=$BACKEND_PORT pm2 start npm --name "${APP_DIR}-backend" -- run start
+    cd ..
+    
+    PORT=3001 pm2 start .next/standalone/server.js --name "${APP_DIR}-frontend"
     
     pm2 save
     echo -e "${GREEN}Update Complete!${NC}"
@@ -126,13 +136,18 @@ EOF
     cd ..
 
     echo -e "${GREEN}[5/8] Installing Frontend...${NC}"
+    # Note: NEXT_PUBLIC_API_URL should NOT include /api because code already adds /api
     cat > .env.production << EOF
-NEXT_PUBLIC_API_URL="http://$DOMAIN_NAME:$NGINX_PORT/api"
+NEXT_PUBLIC_API_URL="http://$DOMAIN_NAME:$NGINX_PORT"
 PORT=$APP_PORT
 EOF
 
     npm install
     npm run build
+    
+    # Copy static files for standalone mode
+    cp -r .next/static .next/standalone/.next/
+    cp -r public .next/standalone/ 2>/dev/null || true
 
     echo -e "${GREEN}[6/8] Starting Services with PM2...${NC}"
     sudo npm install -g pm2
@@ -140,7 +155,10 @@ EOF
     cd backend
     PORT=$BACKEND_PORT pm2 start npm --name "${APP_DIR}-backend" -- run start
     cd ..
-    PORT=$APP_PORT pm2 start npm --name "${APP_DIR}-frontend" -- run start
+    
+    # Use standalone server for Next.js
+    PORT=$APP_PORT pm2 start .next/standalone/server.js --name "${APP_DIR}-frontend"
+    
     pm2 save
     pm2 startup
 

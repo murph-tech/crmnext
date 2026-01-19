@@ -525,7 +525,7 @@ export default function PipelinePage() {
             try {
                 // We just need to update the stage
                 await api.updateDealStage(token!, dealId, overContainer);
-                // console.log(`Moved deal ${dealId} to ${overContainer}`);
+
                 // In a real app we might re-fetch here effectively confirming the state, 
                 // but if we trust optimistic update we can skip or do it lazily.
                 // For safety vs glitchiness:

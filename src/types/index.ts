@@ -23,6 +23,8 @@ export interface DashboardStats {
     totalContacts: number;
     totalDeals: number;
     closedWonCount: number;
+    dealsProgress: number;
+    taskCompletionRate: number;
 }
 
 export interface Lead {
@@ -64,6 +66,8 @@ export interface Contact {
     };
 }
 
+
+
 export interface Deal {
     id: string;
     title: string;
@@ -71,7 +75,7 @@ export interface Deal {
     currency: string;
     ownerId?: string;
     owner?: User;
-    stage: string; // e.g., 'PROSPECTING', 'QUALIFICATION', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON', 'CLOSED_LOST'
+    stage: string;
     probability: number;
     expectedCloseDate?: string;
     contactId?: string;
@@ -79,6 +83,24 @@ export interface Deal {
     items?: DealItem[];
     activities?: Activity[];
     notes?: string;
+    // Quotation fields
+    quotationNumber?: string;
+    quotationDate?: string;
+    validUntil?: string;
+    creditTerm?: number;
+    // Quotation customization
+    quotationDiscount?: number;
+    quotationVatRate?: number;
+    quotationWhtRate?: number;
+    quotationThemeColor?: string;
+    quotationTerms?: string;
+    // Customer override
+    quotationCustomerName?: string;
+    quotationCustomerAddress?: string;
+    quotationCustomerTaxId?: string;
+    quotationCustomerPhone?: string;
+    quotationCustomerEmail?: string;
+    // Timestamps
     createdAt: string;
     updatedAt: string;
 }
@@ -88,7 +110,9 @@ export interface DealItem {
     description: string;
     quantity: number;
     price: number;
+    discount: number;
     dealId: string;
+    product?: Product;
 }
 
 export interface Activity {
@@ -142,4 +166,17 @@ export interface Reminder {
     deal?: Deal;
     createdAt: string;
     reminderAt: string;
+}
+
+export interface SystemSetting {
+    id: string;
+    key: string;
+    value: any;
+    updatedAt: string;
+}
+
+export interface PipelineOverview {
+    stage: string;
+    count: number;
+    value: number;
 }

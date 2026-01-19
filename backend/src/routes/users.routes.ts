@@ -75,20 +75,25 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
 // Create user (Admin only)
 router.post('/', authorize('ADMIN'), async (req: AuthRequest, res, next) => {
     try {
-        const { email, password, name, role } = req.body;
+        const { username, email, password, name, role } = req.body;
 
         // Validate required fields
-        if (!email || !password || !name) {
-            return res.status(400).json({ error: 'Email, password and name are required' });
+        if (!username || !email || !password || !name) {
+            return res.status(400).json({ error: 'Username, email, password and name are required' });
         }
 
-        // Check if email already exists
-        const existingUser = await prisma.user.findUnique({
-            where: { email },
+        // Check if email or username already exists
+        const existingUser = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    { email },
+                    { username }
+                ]
+            },
         });
 
         if (existingUser) {
-            return res.status(400).json({ error: 'Email already registered' });
+            return res.status(400).json({ error: 'Email or Username already registered' });
         }
 
         // Hash password
@@ -97,6 +102,7 @@ router.post('/', authorize('ADMIN'), async (req: AuthRequest, res, next) => {
         // Create user
         const user = await prisma.user.create({
             data: {
+                username,
                 email,
                 password: hashedPassword,
                 name,
