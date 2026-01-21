@@ -105,7 +105,18 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
                 id: req.params.id as string,
             },
             include: {
-                contact: true,
+                contact: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        email: true,
+                        phone: true,
+                        company: true,
+                        address: true,
+                        taxId: true
+                    }
+                },
                 owner: {
                     select: { id: true, name: true, email: true },
                 },
@@ -114,10 +125,44 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
                 },
                 activities: {
                     orderBy: { createdAt: 'desc' },
-                    include: { user: { select: { name: true, email: true } } }
+                    take: 50, // Limit to recent 50 activities for performance
+                    select: {
+                        id: true,
+                        title: true,
+                        description: true,
+                        type: true,
+                        completed: true,
+                        duration: true,
+                        dueDate: true,
+                        reminderAt: true,
+                        createdAt: true,
+                        user: { select: { name: true, email: true } }
+                    }
                 },
                 items: {
-                    include: { product: true },
+                    select: {
+                        id: true,
+                        quantity: true,
+                        price: true,
+                        discount: true,
+                        product: {
+                            select: {
+                                id: true,
+                                name: true,
+                                description: true,
+                                sku: true,
+                                price: true
+                            }
+                        }
+                    }
+                },
+                invoice: {
+                    select: {
+                        id: true,
+                        invoiceNumber: true,
+                        status: true,
+                        receipt: { select: { id: true, receiptNumber: true } }
+                    }
                 },
             },
         });
@@ -126,9 +171,7 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
             return res.status(404).json({ error: 'Deal not found' });
         }
 
-        // Custom Access Check since findUnique can't easy mix with OR filter in top level same way findMany does? 
-        // Actually it can if we used findFirst, but findUnique is better.
-        // Let's manually check access to be safe and precise.
+        // Custom Access Check
         const user = req.user;
         const isOwner = deal.ownerId === user?.id;
         const isSalesTeam = deal.salesTeam.some(m => m.id === user?.id);
@@ -164,6 +207,8 @@ router.post('/:id/items', async (req: AuthRequest, res, next) => {
                 quantity: parseInt(quantity) || 1,
                 price: parseFloat(price) || 0,
                 discount: parseFloat(discount) || 0,
+                name: req.body.name,
+                description: req.body.description,
             },
             include: { product: true },
         });
@@ -222,7 +267,7 @@ router.put('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
     try {
         const dealId = req.params.id as string;
         const itemId = req.params.itemId as string;
-        const { price, quantity, discount } = req.body;
+        const { price, quantity, discount, name, description } = req.body;
 
         // Verify deal ownership
         const deal = await prisma.deal.findFirst({
@@ -238,6 +283,8 @@ router.put('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
                 ...(price !== undefined && { price: parseFloat(price) }),
                 ...(quantity !== undefined && { quantity: parseInt(quantity) }),
                 ...(discount !== undefined && { discount: parseFloat(discount) }),
+                ...(name !== undefined && { name }),
+                ...(description !== undefined && { description }),
             },
         });
 
@@ -326,7 +373,9 @@ router.put('/:id', async (req: AuthRequest, res, next) => {
             include: {
                 contact: true,
                 owner: { select: { id: true, name: true, email: true } },
-                salesTeam: { select: { id: true, name: true, email: true, avatar: true } }
+                salesTeam: { select: { id: true, name: true, email: true, avatar: true } },
+                items: { include: { product: true } },
+                invoice: { select: { id: true, invoiceNumber: true } }
             }
         });
 
@@ -451,39 +500,38 @@ router.post('/:id/quotation', async (req: AuthRequest, res, next) => {
     try {
         const dealId = req.params.id as string;
 
-        // Check access - get full deal with relations
-        const existingDeal = await prisma.deal.findUnique({
-            where: { id: dealId },
-            include: {
-                contact: true,
-                owner: { select: { id: true, name: true, email: true } },
-                items: { include: { product: true } },
-            }
-        });
+        // 1. Fetch Deal and Company Settings in parallel
+        const [deal, settings] = await Promise.all([
+            prisma.deal.findUnique({ where: { id: dealId } }),
+            prisma.systemSetting.findMany({
+                where: { key: { in: ['company_info'] } }
+            })
+        ]);
 
-        if (!existingDeal) return res.status(404).json({ error: 'Deal not found' });
+        if (!deal) return res.status(404).json({ error: 'Deal not found' });
 
         // If already has quotation number, return full deal with relations
-        if (existingDeal.quotationNumber) {
+        if (deal.quotationNumber) {
+            const existingDeal = await prisma.deal.findUnique({
+                where: { id: dealId },
+                include: {
+                    contact: true,
+                    owner: { select: { id: true, name: true, email: true } },
+                    items: { include: { product: true } },
+                }
+            });
             return res.json(existingDeal);
         }
 
-        // Generate Running Number: QT-YYYYMM-XXXX
+        // 2. Generate Running Number: QT-YYYYMM-XXXX
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const prefix = `QT-${year}${month}`;
 
-        // Find latest running number to ensure uniqueness
         const latestDeal = await prisma.deal.findFirst({
-            where: {
-                quotationNumber: {
-                    startsWith: prefix
-                }
-            },
-            orderBy: {
-                quotationNumber: 'desc'
-            }
+            where: { quotationNumber: { startsWith: prefix } },
+            orderBy: { quotationNumber: 'desc' }
         });
 
         let nextNum = 1;
@@ -491,28 +539,35 @@ router.post('/:id/quotation', async (req: AuthRequest, res, next) => {
             const parts = latestDeal.quotationNumber.split('-');
             if (parts.length === 3) {
                 const lastNum = parseInt(parts[2]);
-                if (!isNaN(lastNum)) {
-                    nextNum = lastNum + 1;
-                }
+                if (!isNaN(lastNum)) nextNum = lastNum + 1;
             }
         }
+        const quotationNumber = `${prefix}-${String(nextNum).padStart(4, '0')}`;
 
-        const runningNumber = String(nextNum).padStart(4, '0');
-        const quotationNumber = `${prefix}-${runningNumber}`;
+        // 3. Prepare Defaults from Settings
+        const companyInfoSetting = settings.find(s => s.key === 'company_info');
+        let companyInfo: any = {};
+        if (companyInfoSetting) {
+            try { companyInfo = JSON.parse(companyInfoSetting.value); } catch (e) { }
+        }
+
+        const defaultTerms = companyInfo.quotation_terms || '';
 
         const validUntil = new Date(now);
         validUntil.setDate(validUntil.getDate() + 30);
 
         console.log(`Generating Quotation: ${quotationNumber} for Deal ${dealId}`);
 
-        // Update and return full deal with all relations
+        // 4. Update Deal with Quotation Defaults
         const updatedDeal = await prisma.deal.update({
             where: { id: dealId },
             data: {
                 quotationNumber,
                 quotationDate: now,
                 validUntil: validUntil,
-                creditTerm: 30
+                creditTerm: 30,
+                quotationTerms: defaultTerms, // Auto-populate terms
+                quotationStatus: 'DRAFT',
             },
             include: {
                 contact: true,
@@ -530,6 +585,47 @@ router.post('/:id/quotation', async (req: AuthRequest, res, next) => {
             details: error.message,
             stack: error.stack
         });
+    }
+});
+
+// Approve Quotation (Customer Approval)
+router.post('/:id/approve', async (req: AuthRequest, res, next) => {
+    try {
+        const dealId = req.params.id as string;
+
+        // Verify deal exists and user has access
+        const deal = await prisma.deal.findFirst({
+            where: { id: dealId, ...getDealAccessFilter(req.user) },
+        });
+
+        if (!deal) {
+            return res.status(404).json({ error: 'Deal not found' });
+        }
+
+        if (deal.quotationApproved) {
+            return res.status(400).json({ error: 'Quotation already approved' });
+        }
+
+        const updatedDeal = await prisma.deal.update({
+            where: { id: dealId },
+            data: {
+                quotationApproved: true,
+                quotationApprovedAt: new Date(),
+                quotationStatus: 'APPROVED', // Sync status
+                stage: 'CLOSED_WON',
+                closedAt: new Date(),
+            },
+            include: {
+                contact: true,
+                owner: { select: { id: true, name: true, email: true } },
+                items: { include: { product: true } },
+                invoice: { select: { id: true, invoiceNumber: true } }
+            }
+        });
+
+        res.json(updatedDeal);
+    } catch (error) {
+        next(error);
     }
 });
 

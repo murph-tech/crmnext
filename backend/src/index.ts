@@ -16,6 +16,7 @@ import dashboardRoutes from './routes/dashboard.routes';
 import productsRoutes from './routes/products.routes';
 import settingsRoutes from './routes/settings.routes';
 import usersRoutes from './routes/users.routes';
+import documentRoutes from './routes/documents.routes';
 import { startReminderService } from './services/reminder.service';
 
 // Middleware
@@ -61,6 +62,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/products', productsRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api', documentRoutes);
 
 // Error handling
 app.use(errorHandler);

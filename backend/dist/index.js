@@ -21,6 +21,7 @@ const dashboard_routes_1 = __importDefault(require("./routes/dashboard.routes"))
 const products_routes_1 = __importDefault(require("./routes/products.routes"));
 const settings_routes_1 = __importDefault(require("./routes/settings.routes"));
 const users_routes_1 = __importDefault(require("./routes/users.routes"));
+const documents_routes_1 = __importDefault(require("./routes/documents.routes"));
 // Middleware
 const error_middleware_1 = require("./middleware/error.middleware");
 dotenv_1.default.config();
@@ -28,6 +29,7 @@ const app = (0, express_1.default)();
 const prisma = new client_1.PrismaClient();
 exports.prisma = prisma;
 const PORT = process.env.PORT || 4000;
+// Force restart trigger
 // Middleware
 app.use((0, cors_1.default)({
     origin: [
@@ -57,6 +59,7 @@ app.use('/api/dashboard', dashboard_routes_1.default);
 app.use('/api/products', products_routes_1.default);
 app.use('/api/settings', settings_routes_1.default);
 app.use('/api/users', users_routes_1.default);
+app.use('/api', documents_routes_1.default);
 // Error handling
 app.use(error_middleware_1.errorHandler);
 // Graceful shutdown

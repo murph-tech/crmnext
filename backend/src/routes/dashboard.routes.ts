@@ -284,7 +284,8 @@ router.get('/won-deals', async (req: AuthRequest, res, next) => {
             // Default to week: Start from last Sunday
             const day = now.getDay();
             const diff = now.getDate() - day; // Adjusts so Sunday is start
-            startDate = new Date(now.setDate(diff));
+            startDate = new Date(now);
+            startDate.setDate(diff);
             startDate.setHours(0, 0, 0, 0);
         }
 

@@ -46,6 +46,8 @@ interface DealDetail {
     }[];
     activities: Activity[];
     items: any[];
+    quotationApproved?: boolean;
+    quotationStatus?: string;
     createdAt: string;
     updatedAt: string;
 }
@@ -881,7 +883,8 @@ export default function DealDetailPage() {
                             </h3>
                             <button
                                 onClick={() => setShowProductModal(true)}
-                                className="text-xs text-blue-600 font-medium hover:underline"
+                                disabled={deal.quotationApproved}
+                                className={`text-xs font-medium hover:underline ${deal.quotationApproved ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600'}`}
                             >
                                 + Add
                             </button>
@@ -900,12 +903,14 @@ export default function DealDetailPage() {
                                                 <p className="text-xs text-gray-500">{item.quantity} x</p>
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={() => handleRemoveItem(item.id)}
-                                            className="p-1 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded transition-colors"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
+                                        {!deal.quotationApproved && (
+                                            <button
+                                                onClick={() => handleRemoveItem(item.id)}
+                                                className="p-1 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded transition-colors"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
                             </div>

@@ -95,15 +95,21 @@ export interface Deal {
     quotationWhtRate?: number;
     quotationThemeColor?: string;
     quotationTerms?: string;
+    quotationStatus?: 'DRAFT' | 'SENT' | 'APPROVED' | 'REJECTED';
     // Customer override
     quotationCustomerName?: string;
     quotationCustomerAddress?: string;
     quotationCustomerTaxId?: string;
     quotationCustomerPhone?: string;
     quotationCustomerEmail?: string;
+    // Customer Approval
+    quotationApproved?: boolean;
+    quotationApprovedAt?: string;
     // Timestamps
     createdAt: string;
     updatedAt: string;
+    // Relations
+    invoice?: Invoice;
 }
 
 export interface DealItem {
@@ -180,4 +186,74 @@ export interface PipelineOverview {
     stage: string;
     count: number;
     value: number;
+}
+
+export interface InvoiceItem {
+    id: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    discount: number;
+    amount: number;
+    invoiceId: string;
+}
+
+export interface Invoice {
+    id: string;
+    invoiceNumber: string; // IV-YYYYMM-XXXX
+    date: string;
+    dueDate: string;
+
+    companyName: string;
+    companyAddress: string;
+    companyTaxId: string;
+    companyPhone?: string;
+
+    customerName: string;
+    customerAddress: string;
+    customerTaxId?: string;
+    customerPhone?: string;
+    customerEmail?: string;
+
+    subtotal: number;
+    discount: number;
+    vatRate: number;
+    vatAmount: number;
+    grandTotal: number;
+    whtRate: number;
+    whtAmount: number;
+    netTotal: number;
+
+    status: 'DRAFT' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+    notes?: string;
+
+    items?: InvoiceItem[];
+
+    dealId: string;
+    deal?: Deal;
+    receipt?: Receipt;
+}
+
+export interface Receipt {
+    id: string;
+    receiptNumber: string; // RE-YYYYMM-XXXX
+    date: string;
+
+    companyName: string;
+    companyAddress: string;
+    companyTaxId: string;
+    companyPhone?: string;
+
+    customerName: string;
+    customerAddress: string;
+    customerTaxId?: string;
+
+    grandTotal: number;
+    whtAmount: number;
+    netTotal: number;
+    paymentMethod?: string;
+    paymentDate?: string;
+
+    invoiceId: string;
+    invoice?: Invoice;
 }

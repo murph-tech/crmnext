@@ -44,8 +44,13 @@ class ApiClient {
         });
 
         if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error.error || `HTTP error! status: ${response.status}`);
+            const errorData = await response.json().catch(() => ({}));
+            // Throw the whole object but ensure message is set
+            const error = {
+                ...errorData,
+                message: errorData.error || `HTTP error! status: ${response.status}`
+            };
+            throw error;
         }
 
         return response.json();
@@ -229,6 +234,12 @@ class ApiClient {
         });
     }
 
+    async approveQuotation(token: string, id: string) {
+        return this.request<Deal>(`/api/deals/${id}/approve`, {
+            method: 'POST',
+            token
+        });
+    }
 
 
     async addDealItem(token: string, dealId: string, data: any) {
@@ -246,7 +257,7 @@ class ApiClient {
         });
     }
 
-    async updateDealItem(token: string, dealId: string, itemId: string, data: { price?: number; quantity?: number; discount?: number }) {
+    async updateDealItem(token: string, dealId: string, itemId: string, data: { price?: number; quantity?: number; discount?: number; name?: string; description?: string }) {
         return this.request<Deal>(`/api/deals/${dealId}/items/${itemId}`, {
             method: 'PUT',
             body: JSON.stringify(data),
@@ -419,6 +430,70 @@ class ApiClient {
     async deleteUser(token: string, id: string) {
         return this.request<{ message: string }>(`/api/users/${id}`, {
             method: 'DELETE',
+            token,
+        });
+    }
+
+    // Documents
+    async createInvoice(token: string, dealId: string) {
+        return this.request<any>(`/api/deals/${dealId}/invoice`, {
+            method: 'POST',
+            token,
+        });
+    }
+
+    async getInvoice(token: string, id: string) {
+        return this.request<any>(`/api/invoices/${id}`, {
+            token,
+        });
+    }
+
+    async updateInvoice(token: string, id: string, data: any) {
+        return this.request<any>(`/api/invoices/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+            token,
+        });
+    }
+
+    async syncInvoiceItems(token: string, invoiceId: string) {
+        return this.request<any>(`/api/invoices/${invoiceId}/sync-items`, {
+            method: 'POST',
+            token,
+        });
+    }
+
+    async createReceipt(token: string, invoiceId: string) {
+        return this.request<any>(`/api/invoices/${invoiceId}/receipt`, {
+            method: 'POST',
+            token,
+        });
+    }
+
+    async getReceipt(token: string, id: string) {
+        return this.request<any>(`/api/receipts/${id}`, {
+            token,
+        });
+    }
+
+    async updateReceipt(token: string, id: string, data: any) {
+        return this.request<any>(`/api/receipts/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+            token,
+        });
+    }
+
+    async confirmInvoice(token: string, id: string) {
+        return this.request<any>(`/api/invoices/${id}/confirm`, {
+            method: 'POST',
+            token,
+        });
+    }
+
+    async confirmReceipt(token: string, id: string) {
+        return this.request<any>(`/api/receipts/${id}/confirm`, {
+            method: 'POST',
             token,
         });
     }

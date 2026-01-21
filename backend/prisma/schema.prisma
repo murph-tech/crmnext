@@ -141,6 +141,7 @@ model Deal {
   quotationWhtRate     Float?    @default(0)    // WHT percentage
   quotationThemeColor  String?   @default("#006B5A") // Theme color hex
   quotationTerms       String?   // Custom terms and conditions
+  quotationStatus      QuotationStatus @default(DRAFT)
   
   // Customer Override (for quotation only)
   quotationCustomerName    String?
@@ -148,6 +149,10 @@ model Deal {
   quotationCustomerTaxId   String?
   quotationCustomerPhone   String?
   quotationCustomerEmail   String?
+  
+  // Customer Approval
+  quotationApproved   Boolean   @default(false)
+  quotationApprovedAt DateTime?
 
   // Relations
   ownerId    String
@@ -157,6 +162,7 @@ model Deal {
   contact    Contact?   @relation(fields: [contactId], references: [id])
   activities Activity[]
   items      DealItem[]
+  invoice    Invoice?
 
   // Converted from Lead
   convertedFromId String? @unique
@@ -171,6 +177,13 @@ enum DealStage {
   NEGOTIATION
   CLOSED_WON
   CLOSED_LOST
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
 }
 
 // ==================== ACTIVITIES ====================
@@ -198,6 +211,7 @@ model Activity {
   dealId    String?
   deal      Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
+  @@index([dealId, createdAt])
   @@map("activities")
 }
 
@@ -240,12 +254,17 @@ model DealItem {
   price     Float    // Price at the time of deal
   discount  Float    @default(0)
   
+  // Custom overrides
+  name        String? // Custom name override
+  description String? // Custom description override
+  
   // Relations
   dealId    String
   deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
   productId String
   product   Product  @relation(fields: [productId], references: [id])
 
+  @@index([dealId])
   @@map("deal_items")
 }
 
@@ -257,4 +276,129 @@ model SystemSetting {
   updatedAt DateTime @updatedAt
 
   @@map("system_settings")
+}
+
+// ==================== INVOICES ====================
+model Invoice {
+  id            String      @id @default(cuid())
+  invoiceNumber String      @unique // IV-YYYYMM-XXXX
+  date          DateTime    @default(now())
+  dueDate       DateTime
+  
+  // Snapshot data at time of creation
+  companyName    String
+  companyAddress String
+  companyTaxId   String
+  companyPhone   String?
+  
+  customerName    String
+  customerAddress String
+  customerTaxId   String?
+  customerPhone   String?
+  customerEmail   String?
+  
+  // Financials
+  subtotal      Float
+  discount      Float       @default(0)
+  vatRate       Float       @default(7)
+  vatAmount     Float
+  grandTotal    Float
+  whtRate       Float       @default(0)
+  whtAmount     Float       @default(0)
+  netTotal      Float
+  
+  status        InvoiceStatus @default(DRAFT)
+  notes         String?
+  
+  items         InvoiceItem[]
+  
+  // Relations
+  dealId        String      @unique
+  deal          Deal        @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  receipt       Receipt?
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  confirmedAt   DateTime?
+
+  @@index([invoiceNumber])
+  @@index([dealId])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  description String
+  quantity    Int
+  unitPrice   Float
+  discount    Float   @default(0)
+  amount      Float
+  
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  
+  @@map("invoice_items")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  CANCELLED
+}
+
+// ==================== RECEIPTS ====================
+model Receipt {
+  id            String        @id @default(cuid())
+  receiptNumber String        @unique // RE-YYYYMM-XXXX
+  date          DateTime      @default(now())
+  
+  paymentMethod PaymentMethod @default(BANK_TRANSFER)
+  paymentDate   DateTime      @default(now())
+  
+  // Snapshot data
+  companyName    String
+  companyAddress String
+  companyTaxId   String
+  companyPhone   String?
+  
+  customerName    String
+  customerAddress String
+  customerTaxId   String?
+  customerPhone   String?
+  customerEmail   String?
+  
+  // Financials (usually matches invoice, but stored for integrity)
+  grandTotal    Float
+  whtAmount     Float?
+  netTotal      Float
+  
+  status        ReceiptStatus @default(ISSUED)
+  notes         String?
+  
+  // Relations
+  invoiceId     String        @unique
+  invoice       Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  confirmedAt   DateTime?
+
+  @@index([receiptNumber])
+  @@index([invoiceId])
+  @@map("receipts")
+}
+
+enum ReceiptStatus {
+  DRAFT
+  ISSUED // Equivalent to Confirmed for Receipt
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHEQUE
+  CREDIT_CARD
+  OTHER
 }
