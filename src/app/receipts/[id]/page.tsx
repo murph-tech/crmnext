@@ -5,13 +5,15 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import { api } from '@/lib/api';
-import { formatMoney, formatDateTh, formatDateForInput, getCompanyInfo } from '@/lib/document-utils';
+import { formatMoney, formatDateTh, formatDateForInput, formatDateTimeTh, getCompanyInfo } from '@/lib/document-utils';
 import { bahttext } from '@/lib/bahttext';
 import { Loader2, Printer, ArrowLeft, Globe, Edit3, Save, X, CheckCircle } from 'lucide-react';
 import { DocumentsNav } from '@/components/documents/DocumentsNav';
 import { DocumentHeader } from '@/components/documents/DocumentHeader';
 import { SignatureBlock } from '@/components/documents/SignatureBlock';
 import { DocumentLayout } from '@/components/documents/DocumentLayout';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { useToast } from '@/components/ui/Toast';
 
 type Language = 'th' | 'en';
 
@@ -20,11 +22,15 @@ export default function ReceiptPage() {
     const router = useRouter();
     const { token } = useAuth();
     const { settings } = useSettings();
+    const { addToast } = useToast();
     const [receipt, setReceipt] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [language, setLanguage] = useState<Language>('th');
+    const [isConfirming, setIsConfirming] = useState(false);
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    const [showRevertDialog, setShowRevertDialog] = useState(false);
 
     const [editFields, setEditFields] = useState({
         customerName: '',
@@ -56,9 +62,11 @@ export default function ReceiptPage() {
             const receiptData = await api.getReceipt(token, id as string);
             setReceipt(receiptData);
             initEditFields(receiptData);
-        } catch (error) { console.error('Failed to load receipt data:', error); }
-        finally { setIsLoading(false); }
-    }, [token, id]);
+        } catch (error) {
+            console.error('Failed to load receipt data:', error);
+            addToast({ type: 'error', message: 'โหลดข้อมูลไม่สำเร็จ' });
+        } finally { setIsLoading(false); }
+    }, [token, id, addToast]);
 
     useEffect(() => { loadData(); }, [loadData]);
 
@@ -69,21 +77,26 @@ export default function ReceiptPage() {
             const updatedReceipt = await api.updateReceipt(token, receipt.id, editFields);
             setReceipt(updatedReceipt);
             setIsEditMode(false);
-            alert('บันทึกสำเร็จ!');
-        } catch (error: any) { alert(error.message || 'บันทึกไม่สำเร็จ'); }
-        finally { setIsSaving(false); }
+            addToast({ type: 'success', message: 'บันทึกข้อมูลสำเร็จ' });
+        } catch (error: any) {
+            addToast({ type: 'error', message: 'บันทึกไม่สำเร็จ', description: error.message });
+        } finally { setIsSaving(false); }
     };
 
     const handleCancel = () => { if (receipt) initEditFields(receipt); setIsEditMode(false); };
 
+    // Trigger Dialog
+    const requestConfirmReceipt = () => {
+        setShowConfirmDialog(true);
+    };
+
     const handleConfirmReceipt = async () => {
         if (!token || !receipt) return;
-        const confirm = window.confirm('ยืนยันเอกสาร? เอกสารจะถูกล็อกและลงเวลา');
-        if (!confirm) return;
 
+        setIsConfirming(true);
         try {
             const updatedReceipt = await api.confirmReceipt(token, receipt.id);
-            console.log('Receipt confirmed:', updatedReceipt);
+            console.log('Receipt confirmed successfully:', updatedReceipt);
 
             // Proactively check if we got relations back, if not, reload
             if (!updatedReceipt.invoice || !updatedReceipt.invoice.deal) {
@@ -92,20 +105,37 @@ export default function ReceiptPage() {
             } else {
                 setReceipt(updatedReceipt);
             }
-            alert('ยืนยันใบเสร็จรับเงินเรียบร้อย!');
+            setShowConfirmDialog(false);
+            addToast({
+                type: 'success',
+                message: 'ยืนยันเอกสารเรียบร้อย',
+                description: 'สถานะเปลี่ยนเป็นออกแล้ว (Issued) และลงเวลาเรียบร้อย'
+            });
         } catch (error: any) {
             console.error('Confirm receipt failed:', error);
-            alert(error.message || 'ยืนยันไม่สำเร็จ');
+            addToast({
+                type: 'error',
+                message: 'ยืนยันไม่สำเร็จ',
+                description: error.message
+            });
+        } finally {
+            setIsConfirming(false);
         }
     };
 
-    const handleRevertToDraft = async () => {
+    const handleRevertToDraftClick = () => setShowRevertDialog(true);
+
+    const processRevertToDraft = async () => {
         if (!token || !receipt) return;
+
         try {
             const updatedReceipt = await api.updateReceipt(token, receipt.id, { status: 'DRAFT' });
             setReceipt(updatedReceipt);
-            alert('เปลี่ยนเป็นฉบับร่างเรียบร้อย!');
-        } catch (error: any) { alert(error.message || 'เปลี่ยนสถานะไม่สำเร็จ'); }
+            addToast({ type: 'info', message: 'เปลี่ยนสถานะเป็นฉบับร่างเรียบร้อย' });
+            setShowRevertDialog(false);
+        } catch (error: any) {
+            addToast({ type: 'error', message: 'เปลี่ยนสถานะไม่สำเร็จ', description: error.message });
+        }
     };
 
     if (isLoading) return <div className="flex h-screen items-center justify-center bg-gray-100"><Loader2 className="w-8 h-8 animate-spin text-indigo-600" /></div>;
@@ -157,6 +187,27 @@ export default function ReceiptPage() {
                 }
                 .receipt-paper { font-family: 'Sarabun', 'Segoe UI', sans-serif; }
             `}</style>
+
+            <ConfirmDialog
+                isOpen={showConfirmDialog}
+                onClose={() => setShowConfirmDialog(false)}
+                onConfirm={handleConfirmReceipt}
+                isLoading={isConfirming}
+                title="ยืนยันเอกสาร (Confirm Receipt)"
+                description={`เมื่อยืนยันแล้ว:\n1. สถานะจะเปลี่ยนเป็น "ออกแล้ว" (Issued)\n2. ระบบจะล็อกการแก้ไขข้อมูล\n3. ลงลายมือชื่อและเวลาอัตโนมัติ`}
+                confirmText="ยืนยันเอกสาร"
+                type="info"
+            />
+
+            <ConfirmDialog
+                isOpen={showRevertDialog}
+                onClose={() => setShowRevertDialog(false)}
+                onConfirm={processRevertToDraft}
+                title="ยืนยันการกลับเป็นฉบับร่าง"
+                description="การกลับเป็นฉบับร่างจะปลดล็อกการแก้ไขข้อมูล\nยืนยันที่จะดำเนินการต่อหรือไม่?"
+                confirmText="ยืนยัน"
+                type="warning"
+            />
 
             <div className="min-h-screen bg-gray-300 p-4 print:p-0 print:bg-white flex flex-col md:flex-row justify-center gap-6">
                 <div className="flex flex-col gap-4 max-w-[210mm] w-full print:max-w-none">
@@ -251,14 +302,11 @@ export default function ReceiptPage() {
                                 </thead>
                                 <tbody>
                                     {items && items.length > 0 ? items.map((item: any, idx: number) => {
-                                        // Parse description JSON if available
                                         let itemInfo = { sku: null, name: item.description, productDescription: null };
                                         try {
                                             const parsed = JSON.parse(item.description);
                                             if (parsed && parsed.name) itemInfo = parsed;
-                                        } catch (e) {
-                                            // Keep as plain text
-                                        }
+                                        } catch (e) { }
                                         return (
                                             <tr key={idx} className="border-b border-gray-300">
                                                 <td className="py-2 px-2 text-center align-top border-r border-gray-200 text-gray-500">{idx + 1}</td>
@@ -380,9 +428,17 @@ export default function ReceiptPage() {
                                     <button onClick={() => setIsEditMode(true)} className="h-10 w-full flex items-center justify-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition shadow"><Edit3 size={18} /> แก้ไข</button>
                                 )}
 
-                                {receipt.status === 'ISSUED' && <button onClick={handleRevertToDraft} className="h-10 w-full flex items-center justify-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition shadow">กลับเป็นฉบับร่าง</button>}
+                                {receipt.status === 'ISSUED' && <button onClick={handleRevertToDraftClick} className="h-10 w-full flex items-center justify-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition shadow">กลับเป็นฉบับร่าง</button>}
 
-                                {receipt.status === 'DRAFT' && <button onClick={handleConfirmReceipt} className="h-10 w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow"><CheckCircle size={18} /> ยืนยันเอกสาร</button>}
+                                {receipt.status === 'DRAFT' && (
+                                    <button
+                                        onClick={requestConfirmReceipt}
+                                        disabled={isConfirming}
+                                        className="h-10 w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow disabled:opacity-50"
+                                    >
+                                        {isConfirming ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />} ยืนยันเอกสาร
+                                    </button>
+                                )}
                             </>
                         )}
                         <button onClick={() => window.print()} className="h-10 w-full flex items-center justify-center gap-2 text-white px-6 py-2 rounded-lg transition shadow bg-[#15803d] hover:bg-[#166534]"><Printer size={18} /> พิมพ์ / PDF</button>

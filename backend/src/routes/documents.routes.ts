@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { prisma } from '../index';
+import { prisma } from '../db';
 import { authenticate, authorize, AuthRequest } from '../middleware/auth.middleware';
 import { calculateDocumentTotals } from '../utils/calculation';
 
@@ -316,6 +316,7 @@ router.get('/invoices/:id', async (req: AuthRequest, res, next) => {
     }
 });
 
+
 // Update Invoice
 router.put('/invoices/:id', async (req: AuthRequest, res, next) => {
     try {
@@ -344,7 +345,10 @@ router.put('/invoices/:id', async (req: AuthRequest, res, next) => {
 
         if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-        // Allow editing for all statuses
+        // Enforce Locking: Only allow edits if DRAFT or if we are explicitly changing the status (e.g. reverting)
+        if (invoice.status !== 'DRAFT' && !status) {
+            return res.status(400).json({ error: 'Cannot edit a confirmed invoice. Revert to draft first.' });
+        }
 
         const updatedInvoice = await prisma.invoice.update({
             where: { id: invoiceId },
@@ -372,6 +376,7 @@ router.put('/invoices/:id', async (req: AuthRequest, res, next) => {
         next(error);
     }
 });
+
 
 // Sync Invoice items from Deal
 router.post('/invoices/:id/sync-items', async (req: AuthRequest, res, next) => {
@@ -473,23 +478,54 @@ router.post('/invoices/:id/sync-items', async (req: AuthRequest, res, next) => {
 router.post('/invoices/:id/confirm', async (req: AuthRequest, res, next) => {
     try {
         const invoiceId = String(req.params.id);
-        const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+        const now = new Date();
+
+        // 1. Check current status
+        const invoice = await prisma.invoice.findUnique({
+            where: { id: invoiceId },
+            select: { id: true, status: true, confirmedAt: true }
+        });
+
         if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-        if (invoice.status === 'SENT' || invoice.status === 'PAID') {
-            return res.status(400).json({ error: 'Invoice already confirmed' });
+        // 2. Idempotency: If already confirmed (SENT or PAID), return full object
+        if ((invoice.status === 'SENT' || invoice.status === 'PAID') && invoice.confirmedAt) {
+            const fullInvoice = await prisma.invoice.findUnique({
+                where: { id: invoiceId },
+                include: invoiceInclude
+            });
+            return res.json(fullInvoice);
         }
 
-        const updated = await prisma.invoice.update({
+        // 3. Update Status
+        // If it was DRAFT, move to SENT. If it was already PAID (but somehow missing confirmedAt), keep it PAID?
+        // Usually, the flow is DRAFT -> SENT.  Cancellation is separate.
+        // We force it to SENT unless it's already PAID.
+
+        let newStatus = 'SENT';
+        if (invoice.status === 'PAID') newStatus = 'PAID';
+
+        await prisma.invoice.update({
             where: { id: invoiceId },
             data: {
-                status: 'SENT', // Mark as Sent/Confirmed
-                confirmedAt: new Date(), // Set timestamp
-            },
+                status: newStatus as any,
+                confirmedAt: now,
+            }
+        });
+
+        // 4. Return full object
+        const updated = await prisma.invoice.findUnique({
+            where: { id: invoiceId },
             include: invoiceInclude
         });
+
+        console.log(`[Confirm Invoice] Success. ID: ${invoiceId}, Status: ${newStatus}`);
         res.json(updated);
-    } catch (error) { next(error); }
+
+    } catch (error) {
+        console.error('[Confirm Invoice] Error:', error);
+        next(error);
+    }
 });
 
 // Generate Receipt from Invoice
@@ -501,6 +537,7 @@ router.post('/invoices/:id/receipt', async (req: AuthRequest, res, next) => {
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const prefix = `RE-${yearBase}${month}`;
 
+
         // 1. Fetch Invoice
         const invoice = await prisma.invoice.findUnique({
             where: { id: invoiceId },
@@ -509,16 +546,9 @@ router.post('/invoices/:id/receipt', async (req: AuthRequest, res, next) => {
 
         if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
-        // SYSTEMIC FIX: If invoice is still DRAFT, auto-confirm it now
+        // Enforce Flow: Invoice MUST be confirmed (Status != DRAFT)
         if (invoice.status === 'DRAFT') {
-            await prisma.invoice.update({
-                where: { id: invoiceId },
-                data: {
-                    status: 'SENT',
-                    confirmedAt: new Date()
-                }
-            });
-            console.log(`System: Auto-confirmed DRAFT invoice ${invoiceId} during receipt generation.`);
+            return res.status(400).json({ error: 'Please confirm the Invoice before creating a Receipt.' });
         }
 
         if (invoice.receipt) {
@@ -527,6 +557,7 @@ router.post('/invoices/:id/receipt', async (req: AuthRequest, res, next) => {
                 receiptId: invoice.receipt.id
             });
         }
+
 
         // 2. Prepare Receipt Number
         const lastReceipt = await prisma.receipt.findFirst({
@@ -565,7 +596,7 @@ router.post('/invoices/:id/receipt', async (req: AuthRequest, res, next) => {
                 notes: invoice.notes,
 
                 grandTotal: invoice.grandTotal,
-                whtAmount: invoice.whtAmount,
+                whtAmount: invoice.whtAmount || 0,
                 netTotal: invoice.netTotal,
 
                 invoiceId: invoice.id
@@ -622,6 +653,11 @@ router.put('/receipts/:id', async (req: AuthRequest, res, next) => {
 
         if (!receipt) return res.status(404).json({ error: 'Receipt not found' });
 
+        // Enforce Locking
+        if (receipt.status !== 'DRAFT' && !status) {
+            return res.status(400).json({ error: 'Cannot edit a confirmed receipt. Revert to draft first.' });
+        }
+
         const updatedReceipt = await prisma.receipt.update({
             where: { id: receiptId },
             data: {
@@ -647,24 +683,36 @@ router.put('/receipts/:id', async (req: AuthRequest, res, next) => {
     }
 });
 
-// Confirm Receipt (New)
+// Confirm Receipt
 router.post('/receipts/:id/confirm', async (req: AuthRequest, res, next) => {
     try {
         const receiptId = String(req.params.id);
-        const receipt = await prisma.receipt.findUnique({ where: { id: receiptId } });
+        const now = new Date();
+
+        // 1. Check existence and current status
+        const receipt = await prisma.receipt.findUnique({
+            where: { id: receiptId }
+        });
+
         if (!receipt) return res.status(404).json({ error: 'Receipt not found' });
 
-        if (receipt.status === 'ISSUED') {
-            return res.status(400).json({ error: 'Receipt already confirmed' });
+        // 2. Idempotency: If already confirmed, ensure we return the FULL object with relations
+        if (receipt.status === 'ISSUED' && receipt.confirmedAt) {
+            const fullReceipt = await prisma.receipt.findUnique({
+                where: { id: receiptId },
+                include: receiptInclude
+            });
+            return res.json(fullReceipt);
         }
 
-        // Update Receipt status and Invoice status
+        // 3. Perform Updates using Transaction
+        // We update the Receipt AND the Invoice
         await prisma.$transaction([
             prisma.receipt.update({
                 where: { id: receiptId },
                 data: {
                     status: 'ISSUED',
-                    confirmedAt: new Date(),
+                    confirmedAt: now,
                 }
             }),
             prisma.invoice.update({
@@ -673,13 +721,19 @@ router.post('/receipts/:id/confirm', async (req: AuthRequest, res, next) => {
             })
         ]);
 
+        // 4. Fetch the final result with ALL relations needed for the frontend
         const finalReceipt = await prisma.receipt.findUnique({
             where: { id: receiptId },
             include: receiptInclude
         });
 
+        console.log(`[Confirm Receipt] Success. ID: ${receiptId}, Time: ${now}`);
         res.json(finalReceipt);
-    } catch (error) { next(error); }
+
+    } catch (error) {
+        console.error('[Confirm Receipt] Route Error:', error);
+        next(error);
+    }
 });
 
 export default router;

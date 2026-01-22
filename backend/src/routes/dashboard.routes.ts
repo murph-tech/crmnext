@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { prisma } from '../index';
+import { prisma } from '../db';
 import { authenticate, AuthRequest, getOwnerFilter, getUserFilter, authorize, getDealAccessFilter } from '../middleware/auth.middleware';
 
 const router = Router();

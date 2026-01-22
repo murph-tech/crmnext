@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { prisma } from '../index';
+import { prisma } from '../db';
 import nodemailer from 'nodemailer';
 
 export const startReminderService = () => {

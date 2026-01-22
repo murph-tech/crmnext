@@ -5,13 +5,15 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import { api } from '@/lib/api';
-import { formatMoney, formatDateTh, getCompanyInfo } from '@/lib/document-utils';
+import { formatMoney, formatDateTh, getCompanyInfo, formatDateTimeTh } from '@/lib/document-utils';
 import { bahttext } from '@/lib/bahttext';
 import { Loader2, Printer, ArrowLeft, Globe, FileText, CheckCircle, Edit3, Save, X, RefreshCw } from 'lucide-react';
 import { DocumentsNav } from '@/components/documents/DocumentsNav';
 import { DocumentHeader } from '@/components/documents/DocumentHeader';
 import { SignatureBlock } from '@/components/documents/SignatureBlock';
 import { DocumentLayout } from '@/components/documents/DocumentLayout';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { useToast } from '@/components/ui/Toast';
 
 type Language = 'th' | 'en';
 
@@ -20,6 +22,7 @@ export default function InvoicePage() {
     const router = useRouter();
     const { token } = useAuth();
     const { settings } = useSettings();
+    const { addToast } = useToast();
     const [invoice, setInvoice] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isConverting, setIsConverting] = useState(false);
@@ -27,6 +30,9 @@ export default function InvoicePage() {
     const [isEditMode, setIsEditMode] = useState(false);
     const [isConfirming, setIsConfirming] = useState(false);
     const [language, setLanguage] = useState<Language>('th');
+    const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+    const [showRevertDialog, setShowRevertDialog] = useState(false);
+    const [showSyncDialog, setShowSyncDialog] = useState(false);
 
     const [editFields, setEditFields] = useState({
         customerName: '',
@@ -36,8 +42,6 @@ export default function InvoicePage() {
         customerEmail: '',
         notes: '',
     });
-
-
 
     const initEditFields = (inv: any) => {
         setEditFields({
@@ -58,10 +62,11 @@ export default function InvoicePage() {
             initEditFields(invoiceData);
         } catch (error) {
             console.error('Failed to load invoice data:', error);
+            addToast({ type: 'error', message: 'โหลดข้อมูลไม่สำเร็จ' });
         } finally {
             setIsLoading(false);
         }
-    }, [token, id]);
+    }, [token, id, addToast]);
 
     useEffect(() => { loadData(); }, [loadData]);
 
@@ -72,9 +77,9 @@ export default function InvoicePage() {
             const updatedInvoice = await api.updateInvoice(token, invoice.id, editFields);
             setInvoice(updatedInvoice);
             setIsEditMode(false);
-            alert('บันทึกสำเร็จ!');
+            addToast({ type: 'success', message: 'บันทึกข้อมูลสำเร็จ' });
         } catch (error: any) {
-            alert(error.message || 'บันทึกไม่สำเร็จ');
+            addToast({ type: 'error', message: 'บันทึกไม่สำเร็จ', description: error.message });
         } finally {
             setIsSaving(false);
         }
@@ -82,10 +87,13 @@ export default function InvoicePage() {
 
     const handleCancel = () => { if (invoice) initEditFields(invoice); setIsEditMode(false); };
 
+    // Trigger Dialog
+    const requestConfirmInvoice = () => {
+        setShowConfirmDialog(true);
+    };
+
     const handleConfirmInvoice = async () => {
-        if (!token || !invoice || isConfirming) return;
-        const confirmMsg = 'ยืนยันเอกสาร (Confirm Invoice)? \nเอกสารจะเปลี่ยนเป็นสถานะ "ยืนยันแล้ว" และถูกล็อกข้อมูล';
-        if (!window.confirm(confirmMsg)) return;
+        if (!token || !invoice) return;
 
         setIsConfirming(true);
         try {
@@ -93,31 +101,43 @@ export default function InvoicePage() {
             const updatedInvoice = await api.confirmInvoice(token, invoice.id);
             console.log('Invoice confirmed:', updatedInvoice);
 
-            // Proactively check if we got relations back, if not, reload
-            if (updatedInvoice && (updatedInvoice.deal || updatedInvoice.items)) {
+            if (updatedInvoice) {
                 setInvoice(updatedInvoice);
-                alert('ยืนยันใบวางบิลเรียบร้อย!');
+                setShowConfirmDialog(false);
+                addToast({
+                    type: 'success',
+                    message: 'ยืนยันเอกสารเรียบร้อย',
+                    description: 'สถานะเปลี่ยนเป็นส่งแล้ว (Sent) และลงเวลาเรียบร้อย'
+                });
             } else {
-                console.warn('Confirmed invoice response missing relations, reloading...');
+                console.warn('Confirmed invoice returned empty, reloading...');
                 await loadData();
-                alert('ยืนยันใบวางบิลและอัปเดตข้อมูลเรียบร้อย!');
             }
         } catch (error: any) {
             console.error('Confirm invoice failed:', error);
-            alert(error.message || 'ยืนยันไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
-            await loadData();
+            addToast({
+                type: 'error',
+                message: 'ยืนยันไม่สำเร็จ',
+                description: error.message || 'กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต'
+            });
         } finally {
             setIsConfirming(false);
         }
     };
 
-    const handleRevertToDraft = async () => {
+    const handleRevertToDraftClick = () => setShowRevertDialog(true);
+
+    const processRevertToDraft = async () => {
         if (!token || !invoice) return;
+
         try {
             const updatedInvoice = await api.updateInvoice(token, invoice.id, { status: 'DRAFT' });
             setInvoice(updatedInvoice);
-            alert('เปลี่ยนเป็นฉบับร่างเรียบร้อย!');
-        } catch (error: any) { alert(error.message || 'เปลี่ยนสถานะไม่สำเร็จ'); }
+            addToast({ type: 'info', message: 'เปลี่ยนสถานะเป็นฉบับร่างเรียบร้อย' });
+            setShowRevertDialog(false);
+        } catch (error: any) {
+            addToast({ type: 'error', message: 'เปลี่ยนสถานะไม่สำเร็จ', description: error.message });
+        }
     };
 
     const handleConvertToReceipt = async () => {
@@ -127,30 +147,38 @@ export default function InvoicePage() {
         try {
             console.log('Converting invoice to receipt...');
             const receipt = await api.createReceipt(token, invoice.id);
+            addToast({ type: 'success', message: 'ออกใบเสร็จรับเงินสำเร็จ', description: 'กำลังนำท่านไป...' });
             router.push(`/receipts/${receipt.id}`);
         } catch (error: any) {
             console.error('Convert to receipt failed:', error);
             if (error.receiptId) {
-                alert('ใบเสร็จรับเงินถูกสร้างไว้แล้ว กำลังนำท่านไป...');
+                addToast({ type: 'info', message: 'มีใบเสร็จรับเงินอยู่แล้ว', description: 'กำลังนำท่านไป...' });
                 router.push(`/receipts/${error.receiptId}`);
             } else {
-                alert(error.message || 'ออกใบเสร็จรับเงินไม่สำเร็จ กรุณาลองใหม่หรือตรวจสอบข้อมูล');
+                addToast({
+                    type: 'error',
+                    message: 'ออกใบเสร็จรับเงินไม่สำเร็จ',
+                    description: error.message
+                });
             }
         } finally { setIsConverting(false); }
     };
 
     const [isSyncing, setIsSyncing] = useState(false);
-    const handleSyncItems = async () => {
+
+    const handleSyncItemsClick = () => setShowSyncDialog(true);
+
+    const processSyncItems = async () => {
         if (!token || !invoice) return;
-        if (!window.confirm('โปรดอ่าน: ระบบจะล้างรายการสินค้าเดิมใน Invoice นี้ และดึงรายการล่าสุดจาก Deal/Quotation มาใส่แทน ยืนยันหรือไม่?')) return;
 
         setIsSyncing(true);
         try {
             const updatedInvoice = await api.syncInvoiceItems(token, invoice.id);
             setInvoice(updatedInvoice);
-            alert('อัปเดตรายการสินค้าล่าสุดเรียบร้อย!');
+            addToast({ type: 'success', message: 'อัปเดตรายการสินค้าสำเร็จ' });
+            setShowSyncDialog(false);
         } catch (error: any) {
-            alert(error.message || 'Sync failed');
+            addToast({ type: 'error', message: 'อัปเดตไม่สำเร็จ', description: error.message });
         } finally {
             setIsSyncing(false);
         }
@@ -160,8 +188,6 @@ export default function InvoicePage() {
     if (!invoice) return <div className="p-8">Invoice not found</div>;
 
     const companyInfo = getCompanyInfo(settings, invoice ? {
-        // Only pass document-specific company info if it's explicitly stored and different from default
-        // Otherwise let getCompanyInfo handle fallback to settings
         companyName: invoice.companyName,
         companyAddress: invoice.companyAddress,
         companyTaxId: invoice.companyTaxId,
@@ -199,6 +225,38 @@ export default function InvoicePage() {
                 }
                 .invoice-paper { font-family: 'Sarabun', 'Segoe UI', sans-serif; }
             `}</style>
+
+            <ConfirmDialog
+                isOpen={showConfirmDialog}
+                onClose={() => setShowConfirmDialog(false)}
+                onConfirm={handleConfirmInvoice}
+                isLoading={isConfirming}
+                title="ยืนยันเอกสาร (Confirm Invoice)"
+                description={`เมื่อยืนยันแล้ว:\n1. สถานะจะเปลี่ยนเป็น "ส่งแล้ว" (Sent)\n2. ระบบจะล็อกการแก้ไขข้อมูล\n3. ลงลายมือชื่อและเวลาอัตโนมัติ`}
+                confirmText="ยืนยันเอกสาร"
+                type="info"
+            />
+
+            <ConfirmDialog
+                isOpen={showRevertDialog}
+                onClose={() => setShowRevertDialog(false)}
+                onConfirm={processRevertToDraft}
+                title="ยืนยันการกลับเป็นฉบับร่าง"
+                description="การกลับเป็นฉบับร่างจะปลดล็อกการแก้ไขข้อมูล\nยืนยันที่จะดำเนินการต่อหรือไม่?"
+                confirmText="ยืนยัน"
+                type="warning"
+            />
+
+            <ConfirmDialog
+                isOpen={showSyncDialog}
+                onClose={() => setShowSyncDialog(false)}
+                onConfirm={processSyncItems}
+                isLoading={isSyncing}
+                title="ยืนยันการทำรายการ"
+                description={`โปรดอ่าน: ระบบจะล้างรายการสินค้าเดิมใน Invoice นี้\nและดึงรายการล่าสุดจาก Deal/Quotation มาใส่แทน\n\nยืนยันที่จะทำรายการหรือไม่?`}
+                confirmText="ยืนยันการอัปเดต"
+                type="danger"
+            />
 
             <div className="min-h-screen bg-gray-300 p-4 print:p-0 print:bg-white flex flex-col md:flex-row justify-center gap-6">
                 <div className="flex flex-col gap-4 max-w-[210mm] w-full print:max-w-none">
@@ -291,14 +349,11 @@ export default function InvoicePage() {
                                 </thead>
                                 <tbody>
                                     {invoice.items && invoice.items.length > 0 ? invoice.items.map((item: any, idx: number) => {
-                                        // Parse description JSON if available
                                         let itemInfo = { sku: null, name: item.description, productDescription: null };
                                         try {
                                             const parsed = JSON.parse(item.description);
                                             if (parsed && parsed.name) itemInfo = parsed;
-                                        } catch (e) {
-                                            // Keep as plain text
-                                        }
+                                        } catch (e) { }
                                         return (
                                             <tr key={idx} className="border-b border-gray-300">
                                                 <td className="py-2 px-2 text-center align-top border-r border-gray-200 text-gray-500">{idx + 1}</td>
@@ -417,7 +472,7 @@ export default function InvoicePage() {
                                     <>
                                         <button onClick={() => setIsEditMode(true)} className="h-10 w-full flex items-center justify-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition shadow"><Edit3 size={18} /> แก้ไข</button>
                                         <button
-                                            onClick={handleSyncItems}
+                                            onClick={handleSyncItemsClick}
                                             disabled={isSyncing}
                                             className="h-10 w-full flex items-center justify-center gap-2 bg-white text-indigo-600 border border-indigo-200 px-4 py-2 rounded-lg hover:bg-indigo-50 transition shadow-sm font-medium"
                                         >
@@ -426,7 +481,7 @@ export default function InvoicePage() {
                                     </>
                                 )}
 
-                                {(invoice.status === 'SENT' || invoice.status === 'DRAFT') && !invoice.receipt && (
+                                {(invoice.status === 'SENT' || invoice.status === 'PAID') && !invoice.receipt && (
                                     <button
                                         onClick={handleConvertToReceipt}
                                         disabled={isConverting}
@@ -438,7 +493,7 @@ export default function InvoicePage() {
 
                                 {invoice.status === 'DRAFT' && (
                                     <button
-                                        onClick={handleConfirmInvoice}
+                                        onClick={requestConfirmInvoice}
                                         disabled={isConfirming}
                                         className="h-10 w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow disabled:opacity-50"
                                     >
@@ -447,7 +502,7 @@ export default function InvoicePage() {
                                 )}
 
                                 {(invoice.status === 'SENT' || invoice.status === 'PAID') && (
-                                    <button onClick={handleRevertToDraft} className="h-10 w-full flex items-center justify-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition shadow">
+                                    <button onClick={handleRevertToDraftClick} className="h-10 w-full flex items-center justify-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition shadow">
                                         กลับเป็นฉบับร่าง
                                     </button>
                                 )}

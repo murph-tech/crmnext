@@ -12,7 +12,9 @@ import { DocumentsNav } from '@/components/documents/DocumentsNav';
 import { DocumentHeader } from '@/components/documents/DocumentHeader';
 import { SignatureBlock } from '@/components/documents/SignatureBlock';
 import { DocumentLayout } from '@/components/documents/DocumentLayout';
-import { Loader2, Printer, Save, Edit as Edit3, ArrowLeft, Globe, FileText, X, Palette, Package, CheckCircle } from 'lucide-react';
+import { Loader2, Printer, Save, Edit as Edit3, ArrowLeft, Globe, FileText, X, Palette, Package, CheckCircle, Trash2 } from 'lucide-react';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { useToast } from '@/components/ui/Toast';
 
 interface EditableFields {
     quotationCustomerName: string;
@@ -77,6 +79,10 @@ export default function QuotationPage() {
     const [language, setLanguage] = useState<Language>('th');
 
 
+    const { addToast } = useToast();
+    const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
     const loadData = useCallback(async () => {
         if (!token) return;
         try {
@@ -91,10 +97,11 @@ export default function QuotationPage() {
             }
         } catch (error) {
             console.error('Failed to load quotation data:', error);
+            addToast({ type: 'error', message: 'โหลดข้อมูลไม่สำเร็จ' });
         } finally {
             setIsLoading(false);
         }
-    }, [token, id]);
+    }, [token, id, addToast]);
 
     const initEditFields = (d: Deal) => {
         setEditFields({
@@ -145,23 +152,24 @@ export default function QuotationPage() {
             }));
             await Promise.all([api.updateDeal(token, deal.id, editFields), ...itemUpdatePromises]);
             await loadData();
-        } catch (error) {
+            addToast({ type: 'success', message: 'บันทึกข้อมูลสำเร็จ' });
+        } catch (error: any) {
             console.error('Failed to save:', error);
             setDeal(previousDeal);
             setEditableItems(previousItems);
             setIsEditMode(true);
-            alert('บันทึกไม่สำเร็จ');
+            addToast({ type: 'error', message: 'บันทึกไม่สำเร็จ', description: error.message });
         } finally {
             setIsSaving(false);
         }
     };
 
-    const handleConfirmPurchase = async () => {
-        if (!token || !deal) return;
-        const confirmMsg = 'ยืนยันการสั่งซื้อ? ระบบจะยืนยันเอกสารและสร้างใบวางบิลให้อัตโนมัติ';
+    const handleConfirmPurchaseClick = () => {
+        setShowPurchaseDialog(true);
+    };
 
-        const confirm = window.confirm(confirmMsg);
-        if (!confirm) return;
+    const processConfirmPurchase = async () => {
+        if (!token || !deal) return;
 
         setIsApproving(true);
         try {
@@ -175,20 +183,27 @@ export default function QuotationPage() {
             // 2. Auto-create Invoice
             try {
                 const invoice = await api.createInvoice(token, deal.id);
+                addToast({ type: 'success', message: 'อนุมัติและสร้างใบวางบิลสำเร็จ' });
                 router.push(`/invoices/${invoice.id}`);
             } catch (invError: any) {
                 console.error('Auto-invoice failed:', invError);
                 if (invError.invoiceId) {
                     router.push(`/invoices/${invError.invoiceId}`);
                 } else {
-                    alert('อนุมัติการสั่งซื้อสำเร็จ! แต่ไม่สามารถสร้างใบวางบิลอัตโนมัติได้ (ข้อมูลอาจยังไม่สมบูรณ์) กรุณากดปุ่ม "สร้างใบวางบิล" ด้วยตนเองด้านล่าง');
+                    addToast({
+                        type: 'warning',
+                        message: 'อนุมัติสำเร็จ แต่สร้างใบวางบิลอัตโนมัติไม่สำเร็จ',
+                        description: 'กรุณากดปุ่ม "สร้างใบวางบิล" ด้วยตนเอง',
+                        duration: 5000
+                    });
                     await loadData();
                 }
             }
+            setShowPurchaseDialog(false);
 
         } catch (error: any) {
             console.error('Approve failed:', error);
-            alert(error.message || 'ไม่สามารถยืนยันคำสั่งซื้อได้');
+            addToast({ type: 'error', message: 'ไม่สามารถยืนยันคำสั่งซื้อได้', description: error.message });
             await loadData();
         } finally {
             setIsApproving(false);
@@ -206,7 +221,11 @@ export default function QuotationPage() {
             if (error.invoiceId) {
                 router.push(`/invoices/${error.invoiceId}`);
             } else {
-                alert(error.message || 'สร้างใบวางบิลไม่สำเร็จ กรุณาตรวจสอบข้อมูลรายการสินค้าหรือราคารวม');
+                addToast({
+                    type: 'error',
+                    message: 'สร้างใบวางบิลไม่สำเร็จ',
+                    description: error.message || 'กรุณาตรวจสอบข้อมูลรายการสินค้าหรือราคารวม'
+                });
             }
         } finally {
             setIsConverting(false);
@@ -219,9 +238,9 @@ export default function QuotationPage() {
         try {
             const updatedDeal = await api.updateDeal(token, deal.id, { quotationStatus: 'SENT' });
             setDeal(updatedDeal);
-            alert('ยืนยันใบเสนอราคาเรียบร้อย!');
+            addToast({ type: 'success', message: 'ยืนยันใบเสนอราคาเรียบร้อย' });
         } catch (error: any) {
-            alert(error.message || 'ยืนยันไม่สำเร็จ');
+            addToast({ type: 'error', message: 'ยืนยันไม่สำเร็จ', description: error.message });
         } finally {
             setIsChangingStatus(false);
         }
@@ -233,11 +252,26 @@ export default function QuotationPage() {
         try {
             const updatedDeal = await api.updateDeal(token, deal.id, { quotationStatus: 'DRAFT' });
             setDeal(updatedDeal);
-            alert('เปลี่ยนเป็นฉบับร่างเรียบร้อย!');
+            addToast({ type: 'info', message: 'เปลี่ยนเป็นฉบับร่างเรียบร้อย' });
         } catch (error: any) {
-            alert(error.message || 'เปลี่ยนสถานะไม่สำเร็จ');
+            addToast({ type: 'error', message: 'เปลี่ยนสถานะไม่สำเร็จ', description: error.message });
         } finally {
             setIsChangingStatus(false);
+        }
+    };
+
+    const handleDeleteDeal = async () => {
+        if (!token || !deal) return;
+        setIsChangingStatus(true);
+        try {
+            await api.deleteQuotation(token, deal.id);
+            addToast({ type: 'success', message: 'ลบเอกสารใบเสนอราคาเรียบร้อย' });
+            router.push(`/pipeline/${deal.id}`);
+        } catch (error: any) {
+            addToast({ type: 'error', message: 'ลบเอกสารไม่สำเร็จ', description: error.message });
+        } finally {
+            setIsChangingStatus(false);
+            setShowDeleteDialog(false);
         }
     };
 
@@ -291,6 +325,28 @@ export default function QuotationPage() {
                 }
                 .quotation-paper { font-family: 'Sarabun', 'Segoe UI', sans-serif; }
             `}</style>
+
+            <ConfirmDialog
+                isOpen={showPurchaseDialog}
+                onClose={() => setShowPurchaseDialog(false)}
+                onConfirm={processConfirmPurchase}
+                isLoading={isApproving}
+                title="ยืนยันการสั่งซื้อ (Confirm Purchase)"
+                description="ระบบจะยืนยันเอกสารและสร้างใบวางบิลให้อัตโนมัติ"
+                confirmText="ยืนยันการสั่งซื้อ"
+                type="info"
+            />
+
+            <ConfirmDialog
+                isOpen={showDeleteDialog}
+                onClose={() => setShowDeleteDialog(false)}
+                onConfirm={handleDeleteDeal}
+                isLoading={isChangingStatus}
+                title="ยืนยันการลบเอกสาร"
+                description={`คุณต้องการลบเอกสาร "${deal.title}" ใช่หรือไม่?\nการกระทำนี้ไม่สามารถย้อนกลับได้`}
+                confirmText="ยืนยันการลบ"
+                type="danger"
+            />
 
             <div className="min-h-screen bg-gray-300 p-4 print:p-0 print:bg-white flex flex-col md:flex-row justify-center gap-6">
                 <div className="flex flex-col gap-4 max-w-[210mm] w-full print:max-w-none">
@@ -574,6 +630,7 @@ export default function QuotationPage() {
                             <>
                                 <button onClick={handleCancel} className="h-10 w-full flex items-center justify-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition shadow"><X size={18} /> ยกเลิก</button>
                                 <button onClick={handleSave} disabled={isSaving} className="h-10 w-full flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition shadow disabled:opacity-50">{isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} บันทึก</button>
+                                <button onClick={() => setShowDeleteDialog(true)} className="h-10 w-full flex items-center justify-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition shadow"><Trash2 size={18} /> ลบเอกสาร</button>
                             </>
                         ) : (
                             <>
@@ -582,8 +639,8 @@ export default function QuotationPage() {
                                     <button onClick={() => setIsEditMode(true)} className="h-10 w-full flex items-center justify-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition shadow"><Edit3 size={18} /> แก้ไข</button>
                                 )}
 
-                                {/* Confirm/Revert Draft Buttons - Only if not yet customer approved (locked) */}
-                                {!deal.quotationApproved && (
+                                {/* Confirm/Revert Draft Buttons */}
+                                {(
                                     <>
                                         {deal.quotationStatus === 'DRAFT' ? (
                                             <button onClick={handleConfirmQuotation} disabled={isChangingStatus} className="h-10 w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow disabled:opacity-50">
@@ -606,7 +663,7 @@ export default function QuotationPage() {
                                             <div className="h-10 w-full flex items-center justify-center gap-2 bg-green-50 text-green-800 px-4 py-2 rounded-lg border border-green-200 shadow-sm font-medium">✓ ยืนยันคำสั่งซื้อแล้ว</div>
                                         ) : (
                                             <button
-                                                onClick={handleConfirmPurchase}
+                                                onClick={handleConfirmPurchaseClick}
                                                 disabled={isApproving}
                                                 className={`h-10 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition shadow disabled:opacity-50 bg-emerald-600 text-white hover:bg-emerald-700`}
                                             >
@@ -627,6 +684,10 @@ export default function QuotationPage() {
                             </>
                         )}
                         <button onClick={() => window.print()} className="h-10 w-full flex items-center justify-center gap-2 text-white px-6 py-2 rounded-lg transition shadow bg-[#15803d] hover:bg-[#166534]"><Printer size={18} /> พิมพ์ / PDF</button>
+
+                        {!isEditMode && deal.quotationStatus === 'DRAFT' && !deal.quotationApproved && (
+                            <button onClick={() => setShowDeleteDialog(true)} className="h-10 w-full flex items-center justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 px-4 py-2 rounded-lg transition border border-transparent hover:border-red-200 mt-2"><Trash2 size={18} /> ลบเอกสาร</button>
+                        )}
                     </div>
                 </div>
             </div>

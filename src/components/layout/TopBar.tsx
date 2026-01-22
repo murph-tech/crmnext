@@ -63,24 +63,30 @@ export default function TopBar({ sidebarCollapsed, onMobileMenuToggle, isMobile 
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    // Close menus on outside click
+    // Close menus on outside click - Use 'click' instead of 'mousedown' for better consistency
     useEffect(() => {
-        const handleClickOutside = (e: MouseEvent) => {
-            if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as Node;
+
+            // Profile Menu
+            if (profileMenuRef.current && !profileMenuRef.current.contains(target)) {
                 setShowProfileMenu(false);
             }
-            if (notificationMenuRef.current && !notificationMenuRef.current.contains(e.target as Node)) {
+            // Notification Menu
+            if (notificationMenuRef.current && !notificationMenuRef.current.contains(target)) {
                 setShowNotifications(false);
             }
         };
 
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
     }, []);
 
-    const handleBellClick = () => {
+    const handleBellClick = (e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent document click from closing it immediately
         const newShowState = !showNotifications;
         setShowNotifications(newShowState);
+        if (showProfileMenu) setShowProfileMenu(false); // Close other menu
 
         if (newShowState && hasUnread) {
             setHasUnread(false);
@@ -121,7 +127,7 @@ export default function TopBar({ sidebarCollapsed, onMobileMenuToggle, isMobile 
                 duration: 0.3,
                 ease: [0.4, 0, 0.2, 1],
             }}
-            className="fixed top-0 right-0 h-16 z-50 glass-topbar flex items-center justify-between px-4 sm:px-6"
+            className="fixed top-0 right-0 h-16 z-[1000] glass-topbar flex items-center justify-between px-4 sm:px-6"
             style={{ left: 0 }}
         >
             {isMobile && (

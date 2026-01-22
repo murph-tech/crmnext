@@ -12,6 +12,10 @@ export interface CalculationResult {
     netTotal: number;
 }
 
+const round = (num: number): number => {
+    return Math.round((num + Number.EPSILON) * 100) / 100;
+};
+
 export const calculateDocumentTotals = (
     items: {
         price?: number;
@@ -31,8 +35,8 @@ export const calculateDocumentTotals = (
     if (items && items.length > 0) {
         items.forEach(item => {
             const price = item.price || item.unitPrice || 0;
-            const lineGross = item.quantity * price;
-            const lineDiscount = item.discount || 0;
+            const lineGross = round(item.quantity * price);
+            const lineDiscount = item.discount || 0; // Assuming discount is already an absolute number
 
             grossSubtotal += lineGross;
             itemDiscount += lineDiscount;
@@ -41,16 +45,23 @@ export const calculateDocumentTotals = (
         grossSubtotal = manualSubtotal;
     }
 
-    const totalDiscount = itemDiscount + globalDiscount;
-    const afterDiscount = grossSubtotal - totalDiscount;
+    // Formatting/Rounding sums
+    grossSubtotal = round(grossSubtotal);
+    itemDiscount = round(itemDiscount);
+    globalDiscount = round(globalDiscount);
 
-    // VAT is calculated on afterDiscount
-    const vatAmount = afterDiscount * (vatRate / 100);
-    const grandTotal = afterDiscount + vatAmount;
+    const totalDiscount = round(itemDiscount + globalDiscount);
+    const afterDiscount = round(grossSubtotal - totalDiscount);
+
+    // VAT is calculated on afterDiscount (Values must be rounded to 2 decimals)
+    const vatAmount = round(afterDiscount * (vatRate / 100));
+    const grandTotal = round(afterDiscount + vatAmount);
 
     // WHT is calculated on afterDiscount (usually before VAT)
-    const whtAmount = afterDiscount * (whtRate / 100);
-    const netTotal = grandTotal - whtAmount;
+    const whtAmount = round(afterDiscount * (whtRate / 100));
+
+    // Net Total (Payment Amount)
+    const netTotal = round(grandTotal - whtAmount);
 
     return {
         subtotal: grossSubtotal,

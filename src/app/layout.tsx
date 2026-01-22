@@ -3,6 +3,7 @@ import { Kanit } from "next/font/google"; // turbo
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import ClientLayout from "@/components/layout/ClientLayout";
+import { ToastContainer } from "@/components/ui/Toast";
 
 const kanit = Kanit({
   subsets: ["latin", "thai"],
@@ -25,6 +26,8 @@ export default function RootLayout({
       <body className={`${kanit.variable} antialiased font-sans`} suppressHydrationWarning>
         <Providers>
           <ClientLayout>{children}</ClientLayout>
+          {/* Toast Container for Global Notifications */}
+          <ToastContainer />
         </Providers>
       </body>
     </html>

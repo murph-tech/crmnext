@@ -33,13 +33,14 @@ export const SignatureBlock: React.FC<SignatureBlockProps> = ({
             <div className="flex flex-col items-center justify-center">
                 {renderCenter ? renderCenter() : (
                     <>
-                        {companyInfo.companyLogo ? (
-                            <img src={companyInfo.companyLogo} alt="Logo" className="h-10 object-contain mb-1" />
+                        {companyInfo.companyStamp ? (
+                            <img src={companyInfo.companyStamp} alt="Company Stamp" className="h-20 object-contain mb-[-10px] z-10 relative" />
+                        ) : companyInfo.companyLogo ? (
+                            <img src={companyInfo.companyLogo} alt="Logo" className="h-10 object-contain mb-1 opacity-50 grayscale" />
                         ) : (
-                            <div className="w-12 h-12 rounded-full flex items-center justify-center text-[6pt] text-white font-bold" style={{ backgroundColor: themeColor }}>LOGO</div>
+                            <div className="w-16 h-16 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-[6pt] text-gray-300 font-bold">Seal</div>
                         )}
-                        <div className="text-[7pt] font-bold text-gray-600 uppercase">MURPH TECHNOLOGY CO.,LTD.</div>
-                        <div className="text-[6pt] text-gray-400">(ประทับตราบริษัท / Seal)</div>
+                        <div className="text-[6pt] text-gray-400 mt-2">(ประทับตราบริษัท / Seal)</div>
                     </>
                 )}
             </div>

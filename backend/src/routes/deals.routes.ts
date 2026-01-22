@@ -1,6 +1,102 @@
 import { Router } from 'express';
-import { prisma } from '../index';
+import { prisma } from '../db';
 import { authenticate, AuthRequest, getOwnerFilter, getDealAccessFilter } from '../middleware/auth.middleware';
+import { calculateDocumentTotals } from '../utils/calculation';
+
+/**
+ * Helper to sync Invoice and Receipt data when Deal/Quotation is updated.
+ */
+const syncDocuments = async (dealId: string) => {
+    try {
+        // 1. Get Deal with Items
+        const deal = await prisma.deal.findUnique({
+            where: { id: dealId },
+            include: {
+                items: { include: { product: true } },
+                invoice: { include: { receipt: true, items: true } }
+            }
+        });
+
+        if (!deal || !deal.invoice) return; // Nothing to sync
+
+        const invoice = deal.invoice;
+
+        // Skip if invoice is Cancelled or Paid?
+        // User wants "Modified Automatically", so we sync unless strictly forbidden.
+        // Assuming we sync for DRAFT and maybe SENT/ISSUED if the user forces an edit on the deal.
+
+        // 2. Map DealItems to InvoiceItems
+        const invoiceItemsData = deal.items.map(item => ({
+            description: JSON.stringify({
+                sku: item.product?.sku || null,
+                name: item.name || item.product?.name || 'Unknown Item',
+                productDescription: item.description || item.product?.description || null
+            }),
+            quantity: item.quantity,
+            unitPrice: item.price,
+            discount: item.discount || 0,
+            amount: (item.quantity * item.price) - (item.discount || 0)
+        }));
+
+        // 3. Calculate Totals
+        const totals = calculateDocumentTotals(
+            invoiceItemsData,
+            deal.quotationDiscount || 0,
+            deal.quotationVatRate || 7,
+            deal.quotationWhtRate || 0
+        );
+
+        // 4. Update Invoice
+        const updatedInvoice = await prisma.invoice.update({
+            where: { id: invoice.id },
+            data: {
+                // Replace Items
+                items: {
+                    deleteMany: {},
+                    create: invoiceItemsData
+                },
+                // Update Totals
+                subtotal: totals.subtotal,
+                discount: totals.totalDiscount,
+                vatRate: totals.vatRate,
+                vatAmount: totals.vatAmount,
+                grandTotal: totals.grandTotal,
+                whtRate: totals.whtRate,
+                whtAmount: totals.whtAmount,
+                netTotal: totals.netTotal,
+
+                // Sync Customer Fields
+                customerName: deal.quotationCustomerName || invoice.customerName,
+                customerAddress: deal.quotationCustomerAddress || invoice.customerAddress,
+                customerTaxId: deal.quotationCustomerTaxId || invoice.customerTaxId,
+                customerPhone: deal.quotationCustomerPhone || invoice.customerPhone,
+                customerEmail: deal.quotationCustomerEmail || invoice.customerEmail
+            }
+        });
+
+        // 5. Update Receipt if exists
+        if (invoice.receipt) {
+            await prisma.receipt.update({
+                where: { id: invoice.receipt.id },
+                data: {
+                    // Sync Customer Fields
+                    customerName: updatedInvoice.customerName,
+                    customerAddress: updatedInvoice.customerAddress,
+                    customerTaxId: updatedInvoice.customerTaxId,
+                    customerPhone: updatedInvoice.customerPhone,
+                    customerEmail: updatedInvoice.customerEmail,
+
+                    // Sync Financials
+                    grandTotal: updatedInvoice.grandTotal,
+                    whtAmount: updatedInvoice.whtAmount,
+                    netTotal: updatedInvoice.netTotal
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error syncing documents:', error);
+    }
+};
 
 const router = Router();
 
@@ -224,6 +320,9 @@ router.post('/:id/items', async (req: AuthRequest, res, next) => {
             data: { value: totalValue },
         });
 
+        // Sync Invoice/Receipt
+        await syncDocuments(dealId);
+
         res.status(201).json(item);
     } catch (error) {
         next(error);
@@ -255,6 +354,9 @@ router.delete('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
             where: { id: dealId },
             data: { value: totalValue },
         });
+
+        // Sync Invoice/Receipt
+        await syncDocuments(dealId);
 
         res.json({ message: 'Item removed' });
     } catch (error) {
@@ -300,6 +402,9 @@ router.put('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
                 contact: true,
             }
         });
+
+        // Sync Invoice/Receipt
+        await syncDocuments(dealId);
 
         res.json(updatedDeal);
     } catch (error) {
@@ -378,6 +483,9 @@ router.put('/:id', async (req: AuthRequest, res, next) => {
                 invoice: { select: { id: true, invoiceNumber: true } }
             }
         });
+
+        // Sync Invoice/Receipt
+        await syncDocuments(dealId);
 
         res.json(deal);
     } catch (error) {
@@ -620,6 +728,46 @@ router.post('/:id/approve', async (req: AuthRequest, res, next) => {
                 owner: { select: { id: true, name: true, email: true } },
                 items: { include: { product: true } },
                 invoice: { select: { id: true, invoiceNumber: true } }
+            }
+        });
+
+        res.json(updatedDeal);
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Delete Quotation (Reset to Draft Deal)
+router.delete('/:id/quotation', async (req: AuthRequest, res, next) => {
+    try {
+        const dealId = req.params.id as string;
+
+        // Verify deal exists and user has access
+        const deal = await prisma.deal.findFirst({
+            where: { id: dealId, ...getDealAccessFilter(req.user) },
+        });
+
+        if (!deal) {
+            return res.status(404).json({ error: 'Deal not found' });
+        }
+
+        const updatedDeal = await prisma.deal.update({
+            where: { id: dealId },
+            data: {
+                quotationNumber: null,
+                quotationDate: null,
+                validUntil: null,
+                quotationStatus: 'DRAFT',
+                quotationApproved: false,
+                quotationApprovedAt: null,
+                quotationDiscount: 0,
+                // quotationVatRate: 7, // Keep default settings
+                // quotationWhtRate: 0,
+            },
+            include: {
+                contact: true,
+                owner: { select: { id: true, name: true, email: true } },
+                items: { include: { product: true } },
             }
         });
 

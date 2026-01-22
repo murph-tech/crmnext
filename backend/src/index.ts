@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from './db';
 import helmet from 'helmet';
 import hpp from 'hpp';
 import { apiLimiter } from './middleware/security.middleware';
@@ -25,7 +25,6 @@ import { errorHandler } from './middleware/error.middleware';
 dotenv.config();
 
 const app = express();
-const prisma = new PrismaClient();
 const PORT = process.env.PORT || 4000;
 // Force restart trigger
 
@@ -80,4 +79,3 @@ app.listen(PORT, () => {
     console.log(`📊 Health check: http://localhost:${PORT}/health`);
 });
 
-export { prisma };

@@ -241,6 +241,13 @@ class ApiClient {
         });
     }
 
+    async deleteQuotation(token: string, id: string) {
+        return this.request<Deal>(`/api/deals/${id}/quotation`, {
+            method: 'DELETE',
+            token
+        });
+    }
+
 
     async addDealItem(token: string, dealId: string, data: any) {
         return this.request<Deal>(`/api/deals/${dealId}/items`, {
