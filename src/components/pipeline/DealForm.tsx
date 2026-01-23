@@ -12,7 +12,8 @@ interface DealFormProps {
 }
 
 const stageConfig: Record<string, string> = {
-    QUALIFIED: 'Qualified',
+    QUALIFIED: 'New',
+    DISCOVERY: 'Discovery',
     PROPOSAL: 'Proposal',
     NEGOTIATION: 'Negotiation',
     CLOSED_WON: 'Closed Won',
@@ -29,6 +30,8 @@ export default function DealForm({ onSubmit, initialData, isEdit = false, onCanc
         probability: 20,
         contactId: '',
         notes: '',
+        startDate: '',
+        closedAt: '',
     });
 
     useEffect(() => {
@@ -41,6 +44,12 @@ export default function DealForm({ onSubmit, initialData, isEdit = false, onCanc
                 probability: initialData.probability || 20,
                 contactId: initialData.contactId || initialData.contact?.id || '',
                 notes: initialData.notes || '',
+                startDate: initialData.createdAt
+                    ? String(initialData.createdAt).slice(0, 10)
+                    : '',
+                closedAt: initialData.closedAt
+                    ? String(initialData.closedAt).slice(0, 10)
+                    : '',
             });
         }
     }, [initialData]);
@@ -54,6 +63,12 @@ export default function DealForm({ onSubmit, initialData, isEdit = false, onCanc
                 value: parseFloat(formData.value),
                 probability: parseInt(String(formData.probability)),
                 contactId: formData.contactId || undefined,
+                startDate: formData.startDate
+                    ? new Date(formData.startDate).toISOString()
+                    : undefined,
+                closedAt: formData.closedAt
+                    ? new Date(formData.closedAt).toISOString()
+                    : undefined,
             });
         } finally {
             setIsSubmitting(false);
@@ -125,6 +140,40 @@ export default function DealForm({ onSubmit, initialData, isEdit = false, onCanc
                     />
                 </div>
             </div>
+
+            <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Start Date ของดีล
+                </label>
+                <input
+                    type="date"
+                    value={formData.startDate}
+                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                    className="w-full h-10 px-3 rounded-xl spotlight-input text-sm"
+                />
+                <p className="mt-1 text-xs text-gray-400">
+                    ถ้าไม่ระบุ ระบบจะใช้วันที่สร้างดีลเป็นวันเริ่มต้นโดยอัตโนมัติ
+                </p>
+            </div>
+
+            {(formData.stage === 'CLOSED_WON' || formData.stage === 'CLOSED_LOST') && (
+                <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                >
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        {formData.stage === 'CLOSED_WON' ? 'Won Date (วันที่ชนะดีล)' : 'Lost Date (วันที่แพ้ดีล)'}
+                    </label>
+                    <input
+                        type="date"
+                        value={formData.closedAt}
+                        onChange={(e) => setFormData({ ...formData, closedAt: e.target.value })}
+                        className="w-full h-10 px-3 rounded-xl spotlight-input text-sm border-blue-200 bg-blue-50/50"
+                        required
+                    />
+                </motion.div>
+            )}
 
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Contact (Optional)</label>

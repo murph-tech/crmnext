@@ -5,15 +5,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  LayoutDashboard,
-  Users,
-  GitBranch,
-  Contact,
-  Settings,
+  LayoutGrid,
+  UserPlus,
+  Briefcase,
+  UserCircle,
+  Settings2,
   ChevronLeft,
   ChevronRight,
-  Calendar,
-  Package,
+  CalendarDays,
+  Box,
+  Building2,
+  Activity,
+  BarChart3,
 } from 'lucide-react';
 
 interface NavItem {
@@ -23,13 +26,15 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { icon: LayoutDashboard, label: 'ภาพรวม', href: '/' },
-  { icon: Users, label: 'ลูกค้าเป้าหมาย', href: '/leads' },
-  { icon: GitBranch, label: 'การขาย', href: '/pipeline' },
-  { icon: Contact, label: 'รายชื่อติดต่อ', href: '/contacts' },
-  { icon: Calendar, label: 'กิจกรรม', href: '/activities' },
-  { icon: Package, label: 'สินค้า', href: '/products' },
-  { icon: Settings, label: 'ตั้งค่า', href: '/settings' },
+  { icon: LayoutGrid, label: 'ภาพรวม', href: '/' },
+  { icon: UserPlus, label: 'ลูกค้าเป้าหมาย', href: '/leads' },
+  { icon: Briefcase, label: 'การขาย', href: '/pipeline' },
+  { icon: Building2, label: 'บัญชีลูกค้า', href: '/customer-accounts' },
+  { icon: UserCircle, label: 'รายชื่อติดต่อ', href: '/contacts' },
+  { icon: CalendarDays, label: 'ปฏิทิน', href: '/calendar' },
+  { icon: Activity, label: 'กิจกรรม', href: '/activities' },
+  { icon: Box, label: 'สินค้า', href: '/products' },
+  { icon: Settings2, label: 'ตั้งค่า', href: '/settings' },
 ];
 
 interface SidebarProps {
@@ -55,7 +60,13 @@ export default function Sidebar({ isCollapsed, onToggle, isMobile, isOpen, onClo
             logo: settings.branding.logo || ''
           });
         }
-      }).catch(err => console.error('Failed to load branding:', err));
+      }).catch(err => {
+        // In development mode, mock data is returned automatically
+        // In production, this error would indicate backend issues
+        if (process.env.NODE_ENV !== 'development') {
+          console.error('Failed to load branding:', err);
+        }
+      });
     }
   }, [token]);
 
@@ -83,7 +94,7 @@ export default function Sidebar({ isCollapsed, onToggle, isMobile, isOpen, onClo
       className={`fixed left-0 top-0 h-screen glass-sidebar flex flex-col ${isMobile ? 'z-50 shadow-2xl' : 'z-40'}`}
     >
       {/* Logo Section */}
-      <div className="h-16 flex items-center px-5 border-b border-black/[0.04]">
+      <div className="h-16 px-5 border-b border-black/[0.04] flex items-center">
         <motion.div
           // Wait, if mobile and closed, we don't see this anyway.
           // If desktop and closed, we see logo icon.
@@ -100,15 +111,26 @@ export default function Sidebar({ isCollapsed, onToggle, isMobile, isOpen, onClo
           </div>
           <AnimatePresence>
             {(!isCollapsed || isMobile) && (
-              <motion.span
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ duration: 0.2 }}
-                className="font-semibold text-gray-800 whitespace-nowrap"
-              >
-                {branding.appName}
-              </motion.span>
+              <div className="flex flex-col">
+                <motion.span
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="font-semibold text-gray-800 whitespace-nowrap"
+                >
+                  {branding.appName}
+                </motion.span>
+                <motion.p
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -5 }}
+                  transition={{ duration: 0.2, delay: 0.1 }}
+                  className="text-xs text-gray-500 whitespace-nowrap leading-tight"
+                >
+                  By Murph-Tech
+                </motion.p>
+              </div>
             )}
           </AnimatePresence>
         </motion.div>
@@ -150,6 +172,7 @@ export default function Sidebar({ isCollapsed, onToggle, isMobile, isOpen, onClo
 
                   <Icon
                     size={20}
+                    strokeWidth={2.2}
                     className={`flex-shrink-0 transition-colors duration-200 ${isActive ? 'text-[#007AFF]' : ''
                       }`}
                   />
@@ -183,8 +206,8 @@ export default function Sidebar({ isCollapsed, onToggle, isMobile, isOpen, onClo
             );
           })}
 
-          {/* Admin Only: Sales Performance */}
-          {user?.role === 'ADMIN' && (
+          {/* Admin & Manager: Sales Performance */}
+          {(user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
             <li>
               <Link
                 href="/team-performance"
@@ -209,7 +232,7 @@ export default function Sidebar({ isCollapsed, onToggle, isMobile, isOpen, onClo
                     className="absolute inset-0 bg-black/[0.04] rounded-xl -z-10"
                   />
                 )}
-                <Users size={20} className={`flex-shrink-0 transition-colors duration-200 ${pathname === '/team-performance' ? 'text-[#007AFF]' : ''}`} />
+                <BarChart3 size={20} strokeWidth={2.2} className={`flex-shrink-0 transition-colors duration-200 ${pathname === '/team-performance' ? 'text-[#007AFF]' : ''}`} />
                 <AnimatePresence>
                   {!isCollapsed && (
                     <motion.span

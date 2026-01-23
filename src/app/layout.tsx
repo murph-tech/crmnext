@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Kanit } from "next/font/google"; // turbo
+import { Kanit, Inter } from "next/font/google"; // turbo
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import ClientLayout from "@/components/layout/ClientLayout";
@@ -7,8 +7,14 @@ import { ToastContainer } from "@/components/ui/Toast";
 
 const kanit = Kanit({
   subsets: ["latin", "thai"],
-  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
+  weight: ["300", "400", "500", "600"],
   variable: "--font-kanit",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["200", "300", "400", "500", "600", "700"],
+  variable: "--font-google-sans",
 });
 
 export const metadata: Metadata = {
@@ -23,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${kanit.variable} antialiased font-sans`} suppressHydrationWarning>
+      <body className={`${kanit.variable} ${inter.variable} antialiased font-sans`} suppressHydrationWarning>
         <Providers>
           <ClientLayout>{children}</ClientLayout>
           {/* Toast Container for Global Notifications */}

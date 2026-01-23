@@ -1,13 +1,41 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Plus, Search, Filter, Edit2, Trash2, ArrowRight, Loader2 } from 'lucide-react';
+import {
+    Users,
+    Plus,
+    Search,
+    Filter,
+    Edit2,
+    Trash2,
+    ArrowRight,
+    Loader2,
+    Download,
+    GripVertical,
+    X
+} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import Modal from '@/components/ui/Modal';
-
 import { Lead } from '@/types';
+import { ColumnDef } from '@/types/table';
+import { ColumnHeader } from '@/components/ui/ColumnHeader';
+import {
+    DndContext,
+    closestCorners,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 
 const sourceOptions = ['WEBSITE', 'REFERRAL', 'LINKEDIN', 'COLD_CALL', 'ADVERTISEMENT', 'OTHER'];
 const statusOptions = ['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED', 'CONVERTED'];
@@ -20,17 +48,111 @@ const statusColors: Record<string, string> = {
     CONVERTED: '#AF52DE',
 };
 
+const DEFAULT_COLUMNS: ColumnDef[] = [
+    { id: 'name', label: 'Name', width: '1.5fr', minWidth: 200, visible: true, filterValue: '' },
+    { id: 'status', label: 'Status', width: 120, minWidth: 100, visible: true, filterValue: '' },
+    { id: 'contact', label: 'Contact', width: '1.5fr', minWidth: 150, visible: true, filterValue: '' },
+    { id: 'company', label: 'Company', width: '1.2fr', minWidth: 150, visible: true, filterValue: '' },
+    { id: 'source', label: 'Source', width: 120, minWidth: 100, visible: true, filterValue: '' },
+    { id: 'owner', label: 'Owner', width: 100, minWidth: 80, visible: true, filterValue: '' },
+];
+
 export default function LeadsPage() {
     const { token } = useAuth();
     const [leads, setLeads] = useState<Lead[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [columns, setColumns] = useState<ColumnDef[]>(DEFAULT_COLUMNS);
+    const [isInitialized, setIsInitialized] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [showConvertModal, setShowConvertModal] = useState(false);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+
+    // --- Persistence ---
+    useEffect(() => {
+        const saved = localStorage.getItem('crm_leads_columns_v1');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                // Merge with default to ensure new columns show up
+                const merged = DEFAULT_COLUMNS.map(col => {
+                    const existing = parsed.find((p: any) => p.id === col.id);
+                    return existing ? { ...col, ...existing, filterValue: '' } : col;
+                });
+                setColumns(merged);
+            } catch (e) {
+                console.error('Failed to parse columns', e);
+            }
+        }
+        setIsInitialized(true);
+    }, []);
+
+    useEffect(() => {
+        if (isInitialized) {
+            localStorage.setItem('crm_leads_columns_v1', JSON.stringify(columns.map(({ id, width, visible }) => ({ id, width, visible }))));
+        }
+    }, [columns, isInitialized]);
+
+    // --- Sensors ---
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
+
+    const handleColumnMove = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            setColumns((items) => {
+                const oldIndex = items.findIndex((i) => i.id === active.id);
+                const newIndex = items.findIndex((i) => i.id === over.id);
+                return arrayMove(items, oldIndex, newIndex);
+            });
+        }
+    };
+
+    const handleResize = (id: string, width: number) => {
+        setColumns(prev => prev.map(col => col.id === id ? { ...col, width } : col));
+    };
+
+    const handleFilterChange = (id: string, value: string) => {
+        setColumns(prev => prev.map(col => col.id === id ? { ...col, filterValue: value } : col));
+    };
+
+    const gridTemplateColumns = useMemo(() => {
+        const cols = columns.filter(c => c.visible).map(c =>
+            typeof c.width === 'number' ? `${c.width}px` : c.width
+        );
+        return `40px ${cols.join(' ')}`;
+    }, [columns]);
+
+    const filteredLeads = useMemo(() => {
+        return leads.filter(lead => {
+            return columns.every(col => {
+                if (!col.filterValue) return true;
+                const val = col.filterValue.toLowerCase();
+
+                switch (col.id) {
+                    case 'name':
+                        return `${lead.firstName} ${lead.lastName}`.toLowerCase().includes(val);
+                    case 'status':
+                        return lead.status.toLowerCase().includes(val);
+                    case 'contact':
+                        return `${lead.email} ${lead.phone || ''}`.toLowerCase().includes(val);
+                    case 'company':
+                        return `${lead.company || ''} ${lead.jobTitle || ''}`.toLowerCase().includes(val);
+                    case 'source':
+                        return lead.source?.toLowerCase().includes(val);
+                    case 'owner':
+                        return (lead as any).owner?.name?.toLowerCase().includes(val);
+                    default:
+                        return true;
+                }
+            });
+        });
+    }, [leads, columns]);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -52,10 +174,12 @@ export default function LeadsPage() {
 
     const loadLeads = async () => {
         try {
-            const data = await api.getLeads(token!, { search: searchQuery || undefined });
+            const data = await api.getLeads(token!);
             setLeads(data);
         } catch (error) {
-            console.error('Failed to load leads:', error);
+            if (process.env.NODE_ENV !== 'development') {
+                console.error('Failed to load leads:', error);
+            }
         } finally {
             setIsLoading(false);
         }
@@ -165,9 +289,26 @@ export default function LeadsPage() {
         setShowConvertModal(true);
     };
 
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault();
-        loadLeads();
+    const handleExportCsv = async () => {
+        setIsExporting(true);
+        try {
+            const { exportToCsv } = await import('@/lib/csvHelper');
+            const exportData = leads.map(lead => ({
+                Name: `${lead.firstName} ${lead.lastName}`,
+                Status: lead.status,
+                Email: lead.email,
+                Phone: lead.phone || '-',
+                Company: lead.company || '-',
+                JobTitle: lead.jobTitle || '-',
+                Source: lead.source || '-',
+                Owner: (lead as any).owner?.name || 'Unassigned'
+            }));
+            exportToCsv(exportData, `leads-export-${new Date().toISOString().split('T')[0]}.csv`);
+        } catch (error) {
+            console.error('Export failed:', error);
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     // LeadForm moved outside to prevent re-rendering issues
@@ -205,215 +346,254 @@ export default function LeadsPage() {
                 <div>
                     <h1 className="text-xl font-bold tracking-tight text-[#007AFF] flex items-center gap-2">
                         <Users size={24} />
-                        Leads <span className="text-gray-400 font-normal text-sm ml-2">({leads.length})</span>
+                        Leads <span className="text-gray-400 font-normal text-sm ml-2">({filteredLeads.length})</span>
                     </h1>
                 </div>
 
                 <div className="flex gap-2">
-                    <div className="relative">
-                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSearch(e)}
-                            placeholder="Search leads..."
-                            className="h-9 pl-9 pr-4 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#007AFF]/20 w-64"
-                        />
-                    </div>
+                    <button
+                        onClick={handleExportCsv}
+                        disabled={isExporting}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#007AFF] disabled:opacity-50 transition-colors"
+                    >
+                        {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                        <span className="hidden sm:inline">Export CSV</span>
+                    </button>
+                    <button
+                        onClick={() => { resetForm(); setShowAddModal(true); }}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-[#007AFF] text-white text-sm font-medium rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#007AFF] transition-colors"
+                    >
+                        <Plus size={16} />
+                        <span>New Lead</span>
+                    </button>
                 </div>
             </motion.div>
 
             {/* Leads List */}
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex-1 flex flex-col">
-                {/* Desktop Table Header */}
-                <div className="hidden md:grid grid-cols-[40px_1.5fr_120px_1.5fr_1.2fr_120px_120px] gap-4 px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider items-center">
-                    <div className="flex justify-center">
-                        <input type="checkbox" className="rounded border-gray-300 text-[#007AFF] focus:ring-[#007AFF]" />
-                    </div>
-                    <div>Name</div>
-                    <div>Status</div>
-                    <div>Contact</div>
-                    <div>Company</div>
-                    <div>Source</div>
-                    <div className="text-center">Owner</div>
-                </div>
-
-                {/* List Body */}
-                <div className="overflow-y-auto flex-1">
-                    {leads.length === 0 ? (
-                        <div className="text-center py-16 text-gray-400">
-                            <Users size={48} className="mx-auto mb-4 opacity-50" />
-                            <p className="text-lg font-medium text-gray-500">No leads found</p>
-                            <p className="text-sm mt-1">Start by adding your first lead</p>
-                        </div>
-                    ) : (
-                        leads.map((lead, index) => (
-                            <div key={lead.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-                                {/* Desktop Row */}
-                                <div className="hidden md:grid group grid-cols-[40px_1.5fr_120px_1.5fr_1.2fr_120px_120px] gap-4 px-4 py-3 items-center text-sm">
-                                    <div className="flex justify-center">
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm flex-1 flex flex-col relative overflow-hidden">
+                <div className="overflow-x-auto flex-1 flex flex-col min-w-full">
+                    <div className="min-w-[1000px] flex flex-col flex-1">
+                        {/* Desktop Table Header */}
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCorners}
+                            onDragEnd={handleColumnMove}
+                        >
+                            <SortableContext items={columns.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                                <div
+                                    className="hidden md:grid gap-0 border-b border-gray-200 bg-gray-50 items-center sticky top-0 z-20"
+                                    style={{ gridTemplateColumns }}
+                                >
+                                    <div className="flex justify-center px-4 py-3 h-full items-center border-r border-gray-200 bg-gray-50">
                                         <input type="checkbox" className="rounded border-gray-300 text-[#007AFF] focus:ring-[#007AFF]" />
                                     </div>
-
-                                    {/* Name & Avatar */}
-                                    <div className="flex items-center gap-3 min-w-0 pr-4">
-                                        <div
-                                            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                                            style={{ backgroundColor: `${statusColors[lead.status]}15`, color: statusColors[lead.status] }}
-                                        >
-                                            {lead.firstName[0]}{lead.lastName[0]}
-                                        </div>
-                                        <div className="truncate">
-                                            <span className="font-medium text-gray-900 block truncate">{lead.firstName} {lead.lastName}</span>
-                                            {/* Row Actions - Visible on Hover */}
-                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
-                                                {lead.status !== 'CONVERTED' && (
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); openConvertModal(lead); }}
-                                                        className="p-0.5 hover:bg-purple-100 rounded text-purple-600"
-                                                        title="Convert to Contact"
-                                                    >
-                                                        <ArrowRight size={12} />
-                                                    </button>
-                                                )}
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); openEditModal(lead); }}
-                                                    className="p-0.5 hover:bg-gray-200 rounded text-gray-500"
-                                                    title="Edit"
-                                                >
-                                                    <Edit2 size={12} />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); openDeleteModal(lead); }}
-                                                    className="p-0.5 hover:bg-red-50 rounded text-red-500"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 size={12} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Status */}
-                                    <div>
-                                        <span
-                                            className="inline-flex px-2 py-0.5 text-[10px] font-medium rounded-full"
-                                            style={{
-                                                backgroundColor: `${statusColors[lead.status]}15`,
-                                                color: statusColors[lead.status],
-                                            }}
-                                        >
-                                            {lead.status}
-                                        </span>
-                                    </div>
-
-                                    {/* Contact Info */}
-                                    <div className="truncate">
-                                        <div className="text-gray-900 truncate">{lead.email}</div>
-                                        <div className="text-xs text-gray-500 truncate">{lead.phone || '-'}</div>
-                                    </div>
-
-                                    {/* Company */}
-                                    <div className="truncate">
-                                        <div className="text-gray-900 truncate">{lead.company || '-'}</div>
-                                        <div className="text-xs text-gray-500 truncate">{lead.jobTitle || '-'}</div>
-                                    </div>
-
-                                    {/* Source */}
-                                    <div>
-                                        <span className="inline-flex px-2 py-0.5 text-[10px] font-medium rounded text-gray-600 bg-gray-100">
-                                            {lead.source?.replace('_', ' ') || 'OTHER'}
-                                        </span>
-                                    </div>
-
-                                    {/* Owner */}
-                                    <div className="flex justify-center">
-                                        <div
-                                            className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
-                                            style={{
-                                                backgroundColor: (lead as any).owner?.name
-                                                    ? `hsl(${(lead as any).owner.name.charCodeAt(0) * 7 % 360}, 60%, 50%)`
-                                                    : '#6B7280'
-                                            }}
-                                            title={(lead as any).owner?.name || 'Unknown'}
-                                        >
-                                            {(lead as any).owner?.name
-                                                ? (lead as any).owner.name.substring(0, 2).toUpperCase()
-                                                : 'NA'}
-                                        </div>
-                                    </div>
+                                    {columns.filter(c => c.visible).map((col, idx) => (
+                                        <ColumnHeader
+                                            key={col.id}
+                                            column={col}
+                                            onResize={handleResize}
+                                            onFilterChange={handleFilterChange}
+                                            index={idx}
+                                        />
+                                    ))}
                                 </div>
+                            </SortableContext>
+                        </DndContext>
 
-                                {/* Mobile Card View */}
-                                <div className="md:hidden p-4 space-y-3">
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex items-center gap-3">
-                                            <div
-                                                className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
-                                                style={{ backgroundColor: `${statusColors[lead.status]}15`, color: statusColors[lead.status] }}
-                                            >
-                                                {lead.firstName[0]}{lead.lastName[0]}
-                                            </div>
-                                            <div>
-                                                <h3 className="font-medium text-gray-900">{lead.firstName} {lead.lastName}</h3>
-                                                <p className="text-xs text-gray-500">{lead.company || 'No Company'}</p>
-                                            </div>
+                        {/* List Body */}
+                        <div className="overflow-y-auto flex-1 bg-white">
+                            {filteredLeads.length > 0 ? filteredLeads.map((lead) => (
+                                <div key={lead.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                                    {/* Desktop Row */}
+                                    <div
+                                        className="hidden md:grid group gap-0 items-center text-sm"
+                                        style={{ gridTemplateColumns }}
+                                    >
+                                        <div className="flex justify-center border-r border-gray-100/50 h-full items-center">
+                                            <input type="checkbox" className="rounded border-gray-300 text-[#007AFF] focus:ring-[#007AFF]" />
                                         </div>
-                                        <span
-                                            className="inline-flex px-2 py-1 text-[10px] font-medium rounded-full"
-                                            style={{
-                                                backgroundColor: `${statusColors[lead.status]}15`,
-                                                color: statusColors[lead.status],
-                                            }}
-                                        >
-                                            {lead.status}
-                                        </span>
+
+                                        {columns.filter(c => c.visible).map(col => {
+                                            switch (col.id) {
+                                                case 'name':
+                                                    return (
+                                                        <div key={col.id} className="px-4 py-3 flex items-center gap-3 min-w-0 border-r border-gray-100/50 h-full">
+                                                            <div
+                                                                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
+                                                                style={{ backgroundColor: `${statusColors[lead.status]}15`, color: statusColors[lead.status] }}
+                                                            >
+                                                                {lead.firstName[0]}{lead.lastName[0]}
+                                                            </div>
+                                                            <div className="truncate">
+                                                                <span className="font-medium text-gray-900 block truncate">{lead.firstName} {lead.lastName}</span>
+                                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
+                                                                    {lead.status !== 'CONVERTED' && (
+                                                                        <button
+                                                                            onClick={(e) => { e.stopPropagation(); openConvertModal(lead); }}
+                                                                            className="p-0.5 hover:bg-purple-100 rounded text-purple-600"
+                                                                            title="Convert to Contact"
+                                                                        >
+                                                                            <ArrowRight size={12} />
+                                                                        </button>
+                                                                    )}
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); openEditModal(lead); }}
+                                                                        className="p-0.5 hover:bg-gray-200 rounded text-gray-500"
+                                                                        title="Edit"
+                                                                    >
+                                                                        <Edit2 size={12} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); openDeleteModal(lead); }}
+                                                                        className="p-0.5 hover:bg-red-50 rounded text-red-500"
+                                                                        title="Delete"
+                                                                    >
+                                                                        <Trash2 size={12} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                case 'status':
+                                                    return (
+                                                        <div key={col.id} className="px-4 py-3 border-r border-gray-100/50 h-full flex items-center">
+                                                            <span
+                                                                className="inline-flex px-2 py-0.5 text-[10px] font-medium rounded-full"
+                                                                style={{
+                                                                    backgroundColor: `${statusColors[lead.status]}15`,
+                                                                    color: statusColors[lead.status],
+                                                                }}
+                                                            >
+                                                                {lead.status}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                case 'contact':
+                                                    return (
+                                                        <div key={col.id} className="px-4 py-3 border-r border-gray-100/50 h-full flex flex-col justify-center truncate">
+                                                            <div className="text-gray-900 truncate">{lead.email}</div>
+                                                            <div className="text-xs text-gray-500 truncate">{lead.phone || '-'}</div>
+                                                        </div>
+                                                    );
+                                                case 'company':
+                                                    return (
+                                                        <div key={col.id} className="px-4 py-3 border-r border-gray-100/50 h-full flex flex-col justify-center truncate">
+                                                            <div className="text-gray-900 truncate">{lead.company || '-'}</div>
+                                                            <div className="text-xs text-gray-500 truncate">{lead.jobTitle || '-'}</div>
+                                                        </div>
+                                                    );
+                                                case 'source':
+                                                    return (
+                                                        <div key={col.id} className="px-4 py-3 border-r border-gray-100/50 h-full flex items-center">
+                                                            <span className="inline-flex px-2 py-0.5 text-[10px] font-medium rounded text-gray-600 bg-gray-100">
+                                                                {lead.source?.replace('_', ' ') || 'OTHER'}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                case 'owner':
+                                                    return (
+                                                        <div key={col.id} className="px-4 py-3 h-full flex items-center justify-center">
+                                                            <div
+                                                                className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                                                                style={{
+                                                                    backgroundColor: (lead as any).owner?.name
+                                                                        ? `hsl(${(lead as any).owner.name.charCodeAt(0) * 7 % 360}, 60%, 50%)`
+                                                                        : '#6B7280'
+                                                                }}
+                                                                title={(lead as any).owner?.name || 'Unknown'}
+                                                            >
+                                                                {(lead as any).owner?.name
+                                                                    ? (lead as any).owner.name.substring(0, 2).toUpperCase()
+                                                                    : 'NA'}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                default:
+                                                    return null;
+                                            }
+                                        })}
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
-                                        <div className="truncate">📧 {lead.email}</div>
-                                        <div className="truncate">📞 {lead.phone || '-'}</div>
-                                    </div>
+                                    {/* Mobile Card View */}
+                                    <div className="md:hidden p-4 space-y-3">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex items-center gap-3">
+                                                <div
+                                                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold"
+                                                    style={{ backgroundColor: `${statusColors[lead.status]}15`, color: statusColors[lead.status] }}
+                                                >
+                                                    {lead.firstName[0]}{lead.lastName[0]}
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-medium text-gray-900">{lead.firstName} {lead.lastName}</h3>
+                                                    <p className="text-xs text-gray-500">{lead.company || 'No Company'}</p>
+                                                </div>
+                                            </div>
+                                            <span
+                                                className="inline-flex px-2 py-1 text-[10px] font-medium rounded-full"
+                                                style={{
+                                                    backgroundColor: `${statusColors[lead.status]}15`,
+                                                    color: statusColors[lead.status],
+                                                }}
+                                            >
+                                                {lead.status}
+                                            </span>
+                                        </div>
 
-                                    <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
-                                        {lead.status !== 'CONVERTED' && (
+                                        <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                                            <div className="truncate">📧 {lead.email}</div>
+                                            <div className="truncate">📞 {lead.phone || '-'}</div>
+                                        </div>
+
+                                        <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                                            {lead.status !== 'CONVERTED' && (
+                                                <button
+                                                    onClick={() => openConvertModal(lead)}
+                                                    className="px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 rounded-lg"
+                                                >
+                                                    Convert
+                                                </button>
+                                            )}
                                             <button
-                                                onClick={() => openConvertModal(lead)}
-                                                className="px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 rounded-lg"
+                                                onClick={() => openEditModal(lead)}
+                                                className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg"
                                             >
-                                                Convert
+                                                Edit
                                             </button>
-                                        )}
-                                        <button
-                                            onClick={() => openEditModal(lead)}
-                                            className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg"
-                                        >
-                                            Edit
-                                        </button>
-                                        <button
-                                            onClick={() => openDeleteModal(lead)}
-                                            className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg"
-                                        >
-                                            Delete
-                                        </button>
+                                            <button
+                                                onClick={() => openDeleteModal(lead)}
+                                                className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        ))
-                    )}
+                            )) : (
+                                <div className="text-center py-16 text-gray-400">
+                                    <Search size={48} className="mx-auto mb-4 opacity-50" />
+                                    <p className="text-lg font-medium text-gray-500">No leads found matching your criteria</p>
+                                    <button
+                                        onClick={() => setColumns(prev => prev.map(c => ({ ...c, filterValue: '' })))}
+                                        className="mt-4 text-[#007AFF] text-sm font-black hover:underline"
+                                    >
+                                        Clear all filters
+                                    </button>
+                                </div>
+                            )}
 
-                    {/* Add Lead Row */}
-                    <button
-                        onClick={() => { resetForm(); setShowAddModal(true); }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-500 hover:bg-gray-50 hover:text-[#007AFF] transition-colors border-b border-gray-100 text-left"
-                    >
-                        <div className="w-10 flex justify-center">
-                            <div className="w-4 h-4 rounded border border-gray-300 bg-white" />
+                            {/* Add Lead Row */}
+                            <button
+                                onClick={() => { resetForm(); setShowAddModal(true); }}
+                                className="w-full flex items-center gap-3 px-4 py-4 text-sm text-gray-500 hover:bg-gray-50 hover:text-[#007AFF] transition-colors border-b border-gray-100 text-left"
+                            >
+                                <div className="w-10 flex justify-center">
+                                    <Plus size={18} strokeWidth={3} />
+                                </div>
+                                <span className="font-black uppercase tracking-widest text-[11px]">Add new lead</span>
+                            </button>
                         </div>
-                        <Plus size={16} />
-                        <span className="font-medium">Add new lead</span>
-                    </button>
+                    </div>
                 </div>
             </div>
 

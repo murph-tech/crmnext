@@ -47,6 +47,53 @@ export interface CompanyInfo {
     bankName: string;
 }
 
+export type Language = 'th' | 'en';
+
+export const documentTranslations = {
+    // Quotation
+    quotation: { th: 'ใบเสนอราคา', en: 'Quotation' },
+    quotationNumber: { th: 'เลขที่ใบเสนอราคา', en: 'Quotation No.' },
+    issueDate: { th: 'วันที่', en: 'Issue Date' },
+    customerName: { th: 'ชื่อลูกค้า', en: 'Customer Name' },
+    taxId: { th: 'เลขที่ผู้เสียภาษี', en: 'Tax ID' },
+    address: { th: 'ที่อยู่', en: 'Address' },
+    phone: { th: 'โทร', en: 'Phone' },
+    salesman: { th: 'พนักงานขาย', en: 'Salesman' },
+    creditTerm: { th: 'การชำระเงิน', en: 'Credit Term' },
+    contactNo: { th: 'เบอร์ติดต่อ', en: 'Contact No.' },
+    contactName: { th: 'ผู้ติดต่อ', en: 'Contact Name' },
+    email: { th: 'อีเมล', en: 'E-mail' },
+    projectName: { th: 'ชื่อโปรเจกต์', en: 'Project Name' },
+    no: { th: 'เลขที่', en: 'No.' },
+    description: { th: 'รายการ', en: 'Description' },
+    quantity: { th: 'จำนวน', en: 'Quantity' },
+    unitPrice: { th: 'ราคา/หน่วย', en: 'Unit Price' },
+    discount: { th: 'ส่วนลด', en: 'Discount' },
+    amount: { th: 'จำนวนเงิน (THB)', en: 'Amount' },
+    subtotal: { th: 'ยอดรวม', en: 'Subtotal' },
+    specialDiscount: { th: 'ส่วนลดพิเศษ', en: 'Special Discount' },
+    vat: { th: 'ภาษีมูลค่าเพิ่ม', en: 'VAT' },
+    withholdingTax: { th: 'หัก ณ ที่จ่าย', en: 'Withholding Tax' },
+    netTotal: { th: 'ยอดรวมสุทธิ', en: 'Net Total' },
+    amountInWords: { th: 'จำนวนเงินเป็นตัวอักษร', en: 'Amount in Words' },
+    authorizedSignature: { th: 'ผู้มีอำนาจลงนาม', en: 'Authorized Signature' },
+    original: { th: 'ต้นฉบับ', en: 'Original' },
+
+    // Invoice
+    invoice: { th: 'ใบกำกับภาษี/ใบวางบิล/ใบส่งของ', en: 'Tax Invoice/Invoice/Dn' },
+    invoiceNumber: { th: 'เลขที่ใบวางบิล', en: 'Invoice No.' },
+
+    // Receipt
+    receipt: { th: 'ใบเสร็จรับเงิน', en: 'Receipt' },
+    receiptNumber: { th: 'เลขที่ใบเสร็จ', en: 'Receipt No.' },
+    paymentMethod: { th: 'วิธีการชำระเงิน', en: 'Payment Method' },
+    paymentDate: { th: 'วันที่ชำระเงิน', en: 'Payment Date' },
+};
+
+export const getTranslation = (key: keyof typeof documentTranslations, language: Language): string => {
+    return documentTranslations[key][language] || documentTranslations[key].th;
+};
+
 export const getCompanyInfo = (settings: any, documentContext?: any): CompanyInfo => {
     const companyInfoSetting = settings?.company_info || {};
 

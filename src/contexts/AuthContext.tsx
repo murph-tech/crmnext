@@ -29,12 +29,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         const savedToken = localStorage.getItem('crm_token');
         const savedUser = localStorage.getItem('crm_user');
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/082deaa4-153a-4a98-a990-54ae31ef6246',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/contexts/AuthContext.tsx:useEffect:init',message:'auth init from localStorage',data:{hasSavedToken:!!savedToken,hasSavedUser:!!savedUser,lastActivityRaw:localStorage.getItem('crm_last_activity')},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
 
         if (savedToken && savedUser) {
             // Check if token has expired due to inactivity
             const lastActivity = localStorage.getItem('crm_last_activity');
             if (lastActivity) {
                 const timeSinceLastActivity = Date.now() - parseInt(lastActivity);
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/082deaa4-153a-4a98-a990-54ae31ef6246',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/contexts/AuthContext.tsx:useEffect:activity_check',message:'auth inactivity check',data:{lastActivityParsed:parseInt(lastActivity),timeSinceLastActivity,isNaNLastActivity:Number.isNaN(parseInt(lastActivity)),timeoutMs:INACTIVITY_TIMEOUT,willExpire:timeSinceLastActivity>INACTIVITY_TIMEOUT},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'E'})}).catch(()=>{});
+                // #endregion
                 if (timeSinceLastActivity > INACTIVITY_TIMEOUT) {
                     // Token expired due to inactivity, clear everything
                     localStorage.removeItem('crm_token');
@@ -76,6 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // Set new timer
             inactivityTimer = setTimeout(() => {
                 console.warn('Auto logout due to inactivity');
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/082deaa4-153a-4a98-a990-54ae31ef6246',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/contexts/AuthContext.tsx:inactivity:logout',message:'auto logout timer fired',data:{timeoutMs:INACTIVITY_TIMEOUT,hasToken:!!token,lastActivityRaw:localStorage.getItem('crm_last_activity')},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'E'})}).catch(()=>{});
+                // #endregion
                 logout();
                 window.location.href = '/login?reason=inactivity';
             }, INACTIVITY_TIMEOUT);
@@ -104,12 +113,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [token, logout]);
 
     const login = async (email: string, password: string) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/082deaa4-153a-4a98-a990-54ae31ef6246',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/contexts/AuthContext.tsx:login:start',message:'auth login start',data:{emailProvided:!!email,passwordProvided:!!password},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         const response = await api.login(email, password);
         setToken(response.token);
         setUser(response.user);
         localStorage.setItem('crm_token', response.token);
         localStorage.setItem('crm_user', JSON.stringify(response.user));
         localStorage.setItem('crm_last_activity', Date.now().toString());
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/082deaa4-153a-4a98-a990-54ae31ef6246',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/contexts/AuthContext.tsx:login:success',message:'auth login success (token stored)',data:{hasToken:!!response?.token,tokenLength:typeof response?.token==='string'?response.token.length:undefined,hasUser:!!response?.user},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
     };
 
     const refreshUser = async () => {

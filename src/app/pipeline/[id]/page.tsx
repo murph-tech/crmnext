@@ -7,7 +7,8 @@ import {
     ArrowLeft, Calendar, FileText, Package, Plus, Clock, X,
     CheckCircle2, DollarSign, User, Building, Phone, Mail, Star,
     MoreVertical, Trash2, Filter, Sparkles, MessageSquare, Video,
-    PhoneCall, FileCheck, Users, ChevronDown, Search, Edit3, Bell
+    PhoneCall, FileCheck, Users, ChevronDown, Search, Edit3, Bell,
+    Calendar as CalendarIcon
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
@@ -25,6 +26,7 @@ interface DealDetail {
     notes?: string;
     quotationNumber?: string;
     expectedCloseDate?: string;
+    closedAt?: string;
     contact?: {
         id: string;
         firstName: string;
@@ -71,7 +73,8 @@ interface Activity {
 
 // Stage configuration with colors
 const DEAL_STAGES = [
-    { key: 'QUALIFIED', label: 'Qualified', color: 'bg-blue-500', textColor: 'text-white' },
+    { key: 'QUALIFIED', label: 'New', color: 'bg-blue-500', textColor: 'text-white' },
+    { key: 'DISCOVERY', label: 'Discovery', color: 'bg-indigo-500', textColor: 'text-white' },
     { key: 'PROPOSAL', label: 'Proposal', color: 'bg-violet-500', textColor: 'text-white' },
     { key: 'NEGOTIATION', label: 'Negotiation', color: 'bg-purple-500', textColor: 'text-white' },
     { key: 'CLOSED_WON', label: 'Closed Won', color: 'bg-emerald-500', textColor: 'text-white' },
@@ -110,6 +113,7 @@ export default function DealDetailPage() {
 
     const [showOwnerModal, setShowOwnerModal] = useState(false);
     const [showTeamModal, setShowTeamModal] = useState(false);
+    const [showCalendarModal, setShowCalendarModal] = useState(false);
     const [users, setUsers] = useState<any[]>([]);
 
     useEffect(() => {
@@ -125,6 +129,27 @@ export default function DealDetailPage() {
             setUsers(data);
         } catch (error) {
             console.error('Failed to load users:', error);
+        }
+    };
+
+    const handleSyncToCalendar = async () => {
+        if (!deal) return;
+
+        try {
+            const eventData = {
+                title: `นัดหมาย: ${deal.title}`,
+                description: `นัดหมายกับ ${deal.contact?.company || deal.contact?.firstName} ${deal.contact?.lastName}`,
+                startTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour from now
+                endTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(), // 2 hours from now
+                location: '',
+                attendees: deal.contact?.email ? [deal.contact.email] : []
+            };
+
+            await api.syncDealToCalendar(token!, deal.id, eventData);
+            alert('Sync ไปยัง Calendar สำเร็จ!');
+        } catch (error) {
+            console.error('Failed to sync to calendar:', error);
+            alert('เกิดข้อผิดพลาดในการ sync');
         }
     };
 
@@ -179,7 +204,7 @@ export default function DealDetailPage() {
             filtered = deal.activities.filter(a => {
                 if (filterType === 'COMPLETED') return a.completed;
                 if (filterType === 'INCOMPLETE') return !a.completed;
-                return a.type === filterType;
+                return a.type && a.type.toUpperCase() === filterType;
             });
         }
 
@@ -269,6 +294,19 @@ export default function DealDetailPage() {
         }
     };
 
+    const updateStage = async (newStage: string) => {
+        if (!deal) return;
+        try {
+            // Optimistic update
+            setDeal(prev => prev ? { ...prev, stage: newStage } : null);
+            await api.updateDealStage(token!, deal.id, newStage);
+            await loadDeal(); // Reload to get side effects like closedAt date
+        } catch (error) {
+            console.error('Failed to update stage:', error);
+            await loadDeal(); // Revert on error
+        }
+    };
+
     const getCurrentStageIndex = () => {
         return DEAL_STAGES.findIndex(s => s.key === deal?.stage) || 0;
     };
@@ -317,29 +355,95 @@ export default function DealDetailPage() {
             </div>
 
             {/* Stage Pipeline Progress Bar */}
-            <div className="mb-6">
-                <div className="flex rounded-xl overflow-hidden">
-                    {DEAL_STAGES.map((stage, index) => {
-                        const isActive = stage.key === deal.stage;
-                        const isPast = index < getCurrentStageIndex();
+            <div className="mb-8">
+                {/* Header Actions (Won/Lost) */}
+                <div className="flex justify-end gap-2 mb-3">
+                    <button
+                        onClick={() => updateStage('CLOSED_WON')}
+                        className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${deal.stage === 'CLOSED_WON'
+                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30'
+                            : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                            }`}
+                    >
+                        Won
+                    </button>
+                    <button
+                        onClick={() => updateStage('CLOSED_LOST')}
+                        className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${deal.stage === 'CLOSED_LOST'
+                            ? 'bg-red-600 text-white shadow-lg shadow-red-500/30'
+                            : 'bg-red-100 text-red-700 hover:bg-red-200'
+                            }`}
+                    >
+                        Lost
+                    </button>
+                </div>
+
+                <div className="flex w-full bg-white border border-gray-100 shadow-sm p-1 rounded-lg">
+                    {/* Map stages visually: QUALIFIED -> New, DISCOVERY -> Discovery, etc. */}
+                    {[
+                        { key: 'QUALIFIED', label: 'New', color: 'bg-blue-600' },
+                        { key: 'DISCOVERY', label: 'Discovery', color: 'bg-indigo-600' },
+                        { key: 'PROPOSAL', label: 'Proposal', color: 'bg-violet-600' },
+                        { key: 'NEGOTIATION', label: 'Negotiation', color: 'bg-orange-500' },
+                        // For 'Closed', we check if it's WON or LOST
+                        { key: 'CLOSED', label: 'Closed', color: 'bg-emerald-600' }
+                    ].map((step, index, array) => {
+                        // Determine if specific step is active or passed
+                        let status = 'upcoming'; // upcoming, current, completed
+
+                        const currentStageIndex = ['QUALIFIED', 'DISCOVERY', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON', 'CLOSED_LOST'].indexOf(deal.stage);
+
+                        // Map visual steps to actual stages logic
+                        // Visual: 0(New/Qual), 1(Disc), 2(Prop), 3(Nego), 4(Closed)
+                        // Actual: QUALIFIED, DISCOVERY, PROPOSAL, NEGOTIATION, [CLOSED_WON/LOST]
+
+                        // Handle 'Closed' generic step
+                        if (step.key === 'CLOSED') {
+                            if (deal.stage === 'CLOSED_WON' || deal.stage === 'CLOSED_LOST') status = 'current';
+                            else status = 'upcoming';
+                        } else {
+                            const stepIndex = ['QUALIFIED', 'DISCOVERY', 'PROPOSAL', 'NEGOTIATION'].indexOf(step.key);
+                            // If deal is closed, all previous steps are completed
+                            if (deal.stage === 'CLOSED_WON' || deal.stage === 'CLOSED_LOST') {
+                                status = 'completed';
+                            } else {
+                                // Active deal
+                                const dealStageIndex = ['QUALIFIED', 'DISCOVERY', 'PROPOSAL', 'NEGOTIATION'].indexOf(deal.stage);
+                                if (stepIndex < dealStageIndex) status = 'completed';
+                                else if (stepIndex === dealStageIndex) status = 'current';
+                                else status = 'upcoming';
+                            }
+                        }
+
+                        // Determine active color
+                        let activeColor = step.color;
+                        if (step.key === 'CLOSED' && deal.stage === 'CLOSED_LOST') {
+                            activeColor = 'bg-red-600';
+                        }
 
                         return (
-                            <div
-                                key={stage.key}
-                                className={`flex-1 relative py-3 px-4 text-center text-sm font-medium transition-all cursor-pointer
-                                    ${isActive || isPast ? stage.color + ' ' + stage.textColor : 'bg-gray-200 text-gray-500'}
-                                    ${index === 0 ? 'rounded-l-xl' : ''}
-                                    ${index === DEAL_STAGES.length - 1 ? 'rounded-r-xl' : ''}
+                            <button
+                                key={step.key}
+                                onClick={() => {
+                                    if (step.key !== 'CLOSED') updateStage(step.key);
+                                }}
+                                className={`flex-1 relative h-10 flex items-center justify-center text-sm font-medium transition-all
+                                    ${status === 'current' ? `${activeColor} text-white z-10 shadow-md` :
+                                        status === 'completed' ? 'bg-slate-400 text-white hover:bg-slate-500' :
+                                            'bg-gray-100 text-gray-400 hover:bg-gray-200'}
+                                    ${index !== 0 ? '-ml-4 pl-6' : ''} 
+                                    clip-path-chevron
                                 `}
+                                style={{
+                                    clipPath: index === 0
+                                        ? 'polygon(0% 0%, 95% 0%, 100% 50%, 95% 100%, 0% 100%)'
+                                        : index === array.length - 1
+                                            ? 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 5% 50%)'
+                                            : 'polygon(0% 0%, 95% 0%, 100% 50%, 95% 100%, 0% 100%, 5% 50%)'
+                                }}
                             >
-                                {stage.label}
-                                {/* Arrow connector */}
-                                {index < DEAL_STAGES.length - 1 && (
-                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10">
-                                        <div className={`w-4 h-4 rotate-45 ${isActive || isPast ? stage.color : 'bg-gray-200'}`}></div>
-                                    </div>
-                                )}
-                            </div>
+                                {step.label}
+                            </button>
                         );
                     })}
                 </div>
@@ -375,13 +479,6 @@ export default function DealDetailPage() {
                         >
                             <FileText size={16} />
                             {deal.quotationNumber ? 'View Quotation' : 'Create Quotation'}
-                        </button>
-                        <button
-                            onClick={() => setQuickActivityType('EMAIL')}
-                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-sm font-medium rounded-lg shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all"
-                        >
-                            <Mail size={16} />
-                            New email
                         </button>
                         <button
                             onClick={() => setShowActivityModal(true)}
@@ -494,7 +591,7 @@ export default function DealDetailPage() {
                                                         </div>
 
                                                         {/* Activity Card */}
-                                                        <div className="ml-11 bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow group">
+                                                        <div className="ml-11 bg-gray-50 rounded-xl border border-gray-200 p-4 hover:shadow-md transition-shadow group">
                                                             <div className="flex items-start justify-between">
                                                                 <div className="flex items-center gap-3">
                                                                     {/* User Avatar */}
@@ -713,164 +810,192 @@ export default function DealDetailPage() {
                 {/* Right Sidebar - Deal Details */}
                 <div className="col-span-4 space-y-4">
                     {/* Deal Info Card */}
-                    <div className="glass-card rounded-2xl p-5 space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
+                    <div className="glass-card rounded-2xl p-6">
+                        <div className="flex items-center justify-between mb-6">
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
-                                <p className="text-sm font-medium text-gray-900">{deal.title}</p>
+                                <h3 className="font-semibold text-gray-900 text-lg">{deal.title}</h3>
+                                {deal.contact?.company && (
+                                    <p className="text-sm text-gray-500 mt-1">{deal.contact.company}</p>
+                                )}
                             </div>
+                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${deal.stage === 'QUALIFIED' ? 'bg-emerald-100 text-emerald-700' :
+                                deal.stage === 'PROPOSAL' ? 'bg-sky-100 text-sky-700' :
+                                    deal.stage === 'NEGOTIATION' ? 'bg-violet-100 text-violet-700' :
+                                        deal.stage === 'CLOSED_WON' ? 'bg-green-100 text-green-700' :
+                                            'bg-gray-100 text-gray-700'
+                                }`}>
+                                {deal.stage.replace('_', ' ')}
+                            </span>
+                        </div>
+
+                        <div className="space-y-6">
+                            {/* Financials Section */}
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Activities timeline</label>
-                                <div className="flex gap-0.5">
-                                    {Array.from({ length: 20 }).map((_, i) => (
-                                        <div
-                                            key={i}
-                                            className={`h-2 w-1.5 rounded-sm ${i < (deal.activities?.length || 0) ? 'bg-purple-500' : 'bg-gray-200'
-                                                }`}
-                                        />
-                                    ))}
+                                <h4 className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                                    <DollarSign size={14} />
+                                    Financials
+                                </h4>
+                                <div className="grid grid-cols-2 gap-4 bg-gray-50 rounded-xl p-4">
+                                    <div>
+                                        <label className="block text-xs text-gray-400 mb-1">Value</label>
+                                        <p className="text-base font-semibold text-gray-900">
+                                            {formatCurrency(deal.value, deal.currency)}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-400 mb-1">Forecast</label>
+                                        <p className="text-base font-semibold text-gray-900">
+                                            {formatCurrency((deal.value * deal.probability) / 100, deal.currency)}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-400 mb-1">Probability</label>
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                <div
+                                                    className="h-full bg-blue-500 rounded-full"
+                                                    style={{ width: `${deal.probability}%` }}
+                                                />
+                                            </div>
+                                            <span className="text-xs font-medium text-gray-700">{deal.probability}%</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-gray-400 mb-1">Close Date</label>
+                                        <p className="text-sm font-medium text-gray-900">
+                                            {(deal.stage === 'CLOSED_WON' || deal.stage === 'CLOSED_LOST') && deal.closedAt
+                                                ? new Date(deal.closedAt).toLocaleDateString('th-TH', {
+                                                    year: 'numeric',
+                                                    month: 'short',
+                                                    day: 'numeric'
+                                                })
+                                                : deal.expectedCloseDate
+                                                    ? new Date(deal.expectedCloseDate).toLocaleDateString('th-TH', {
+                                                        year: 'numeric',
+                                                        month: 'short',
+                                                        day: 'numeric'
+                                                    })
+                                                    : '-'}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Stage</label>
-                                <span className={`inline-block px-3 py-1 rounded-lg text-xs font-medium ${deal.stage === 'QUALIFIED' ? 'bg-emerald-500 text-white' :
-                                    deal.stage === 'PROPOSAL' ? 'bg-sky-500 text-white' :
-                                        deal.stage === 'NEGOTIATION' ? 'bg-violet-500 text-white' :
-                                            deal.stage === 'CLOSED_WON' ? 'bg-green-500 text-white' :
-                                                'bg-gray-500 text-white'
-                                    }`}>
-                                    {deal.stage.replace('_', ' ')}
-                                </span>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Owner</label>
-                                <button
-                                    onClick={() => {
-                                        if (user?.role === 'ADMIN' || user?.role === 'MANAGER') {
-                                            setShowOwnerModal(true);
-                                        }
-                                    }}
-                                    disabled={!(user?.role === 'ADMIN' || user?.role === 'MANAGER')}
-                                    className={`flex items-center gap-2 p-1 -ml-1 rounded-lg transition-colors group ${user?.role === 'ADMIN' || user?.role === 'MANAGER'
-                                        ? 'hover:bg-gray-50 cursor-pointer'
-                                        : 'cursor-not-allowed opacity-60'
-                                        }`}
-                                    title={!(user?.role === 'ADMIN' || user?.role === 'MANAGER') ? "Only Admin and Manager can change owner" : "Change Owner"}
-                                >
-                                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center text-white text-xs font-medium">
-                                        {deal.owner?.name?.substring(0, 2) || 'UN'}
-                                    </div>
-                                    <span className={`text-sm font-medium transition-colors ${user?.role === 'ADMIN' || user?.role === 'MANAGER'
-                                        ? 'text-gray-900 group-hover:text-blue-600'
-                                        : 'text-gray-500'
-                                        }`}>
-                                        {deal.owner?.name || 'Unassigned'}
-                                    </span>
-                                </button>
-                            </div>
-                        </div>
+                            <div className="h-px bg-gray-100" />
 
-                        <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-2">Sales Team</label>
-                            <div className="flex flex-wrap gap-2 items-center">
-                                {(deal.salesTeam || []).map(member => (
-                                    <div key={member.id} className="relative group">
-                                        <div
-                                            className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ring-2 ring-white shadow-sm"
-                                            style={{ backgroundColor: `hsl(${member.name.charCodeAt(0) * 7 % 360}, 60%, 50%)` }}
-                                            title={member.name}
-                                        >
-                                            {member.name.substring(0, 2).toUpperCase()}
+                            {/* People Section */}
+                            <div>
+                                <h4 className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                                    <Users size={14} />
+                                    People
+                                </h4>
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <label className="block text-xs text-gray-400 mb-1">Contact</label>
+                                            {deal.contact ? (
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs">
+                                                        {deal.contact.firstName.charAt(0)}
+                                                    </div>
+                                                    <span className="text-sm font-medium text-gray-900">{deal.contact.firstName} {deal.contact.lastName}</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-sm text-gray-400">No contact</span>
+                                            )}
                                         </div>
-                                        {/* Remove Button for Manager/Admin */}
-                                        {(user?.role === 'ADMIN' || deal.owner?.id === user?.id) && (
-                                            <button
-                                                onClick={() => handleUpdateTeam((deal.salesTeam || []).filter(m => m.id !== member.id).map(m => m.id))}
-                                                className="absolute -top-1 -right-1 bg-white rounded-full text-red-500 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 p-0.5 border border-gray-100"
-                                            >
-                                                <X size={10} />
-                                            </button>
-                                        )}
                                     </div>
-                                ))}
 
-                                {/* Add Button */}
-                                {(user?.role === 'ADMIN' || deal.owner?.id === user?.id) && (
-                                    <button
-                                        onClick={() => setShowTeamModal(true)}
-                                        className="w-8 h-8 rounded-full bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-400 hover:bg-blue-50 transition-all"
-                                    >
-                                        <Plus size={16} />
-                                    </button>
-                                )}
-                                {(deal.salesTeam || []).length === 0 && (user?.role !== 'ADMIN' && deal.owner?.id !== user?.id) && (
-                                    <span className="text-xs text-gray-400 italic">No additional members</span>
-                                )}
-                            </div>
-                        </div>
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <label className="block text-xs text-gray-400 mb-1">Owner</label>
+                                            <button
+                                                onClick={() => {
+                                                    if (user?.role === 'ADMIN' || user?.role === 'MANAGER') {
+                                                        setShowOwnerModal(true);
+                                                    }
+                                                }}
+                                                disabled={!(user?.role === 'ADMIN' || user?.role === 'MANAGER')}
+                                                className={`flex items-center gap-2 group ${user?.role === 'ADMIN' || user?.role === 'MANAGER'
+                                                    ? 'cursor-pointer'
+                                                    : 'cursor-not-allowed opacity-80'
+                                                    }`}
+                                            >
+                                                <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-bold text-xs">
+                                                    {deal.owner?.name?.substring(0, 2) || 'UN'}
+                                                </div>
+                                                <span className={`text-sm font-medium transition-colors ${user?.role === 'ADMIN' || user?.role === 'MANAGER'
+                                                    ? 'text-gray-900 group-hover:text-purple-600'
+                                                    : 'text-gray-700'
+                                                    }`}>
+                                                    {deal.owner?.name || 'Unassigned'}
+                                                </span>
+                                            </button>
+                                        </div>
+                                    </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Deal Value</label>
-                                <p className="text-sm font-medium text-gray-900">
-                                    {formatCurrency(deal.value, deal.currency)}
-                                </p>
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="block text-xs text-gray-400">Sales Team</label>
+                                            {(user?.role === 'ADMIN' || deal.owner?.id === user?.id) && (
+                                                <button
+                                                    onClick={() => setShowTeamModal(true)}
+                                                    className="text-xs text-blue-600 font-medium hover:underline"
+                                                >
+                                                    + Add
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {(deal.salesTeam || []).map(member => (
+                                                <div key={member.id} className="relative group/member">
+                                                    <div
+                                                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ring-2 ring-white shadow-sm cursor-help"
+                                                        style={{ backgroundColor: `hsl(${member.name.charCodeAt(0) * 7 % 360}, 60%, 50%)` }}
+                                                        title={member.name}
+                                                    >
+                                                        {member.name.substring(0, 2).toUpperCase()}
+                                                    </div>
+                                                    {(user?.role === 'ADMIN' || deal.owner?.id === user?.id) && (
+                                                        <button
+                                                            onClick={() => handleUpdateTeam((deal.salesTeam || []).filter(m => m.id !== member.id).map(m => m.id))}
+                                                            className="absolute -top-1 -right-1 bg-white rounded-full text-red-500 shadow-sm opacity-0 group-hover/member:opacity-100 transition-opacity hover:bg-red-50 p-0.5 border border-gray-100"
+                                                        >
+                                                            <X size={8} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ))}
+                                            {(deal.salesTeam || []).length === 0 && (
+                                                <span className="text-xs text-gray-400 italic py-1">No additional members</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Contacts</label>
-                                {deal.contact ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs">
-                                        <Users size={12} />
-                                        {deal.contact.firstName}
-                                    </span>
-                                ) : (
-                                    <span className="text-xs text-gray-400">No contact</span>
-                                )}
-                            </div>
-                        </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Company</label>
-                                <p className="text-sm font-medium text-gray-900">{deal.contact?.company || '-'}</p>
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Expected Close Date</label>
-                                <p className="text-sm text-gray-900">
-                                    {deal.expectedCloseDate
-                                        ? new Date(deal.expectedCloseDate).toLocaleDateString()
-                                        : '-'
-                                    }
-                                </p>
-                            </div>
-                        </div>
+                            <div className="h-px bg-gray-100" />
 
-                        <div className="grid grid-cols-2 gap-4">
+                            {/* Other Info */}
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Close Probability</label>
-                                <p className="text-sm font-medium text-gray-900">{deal.probability}%</p>
+                                <h4 className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                                    <Clock size={14} />
+                                    Activity
+                                </h4>
+                                <div>
+                                    <label className="block text-xs text-gray-400 mb-1">Last Interaction</label>
+                                    <p className="text-sm font-medium text-gray-900">
+                                        {deal.activities?.[0]
+                                            ? new Date(deal.activities[0].createdAt).toLocaleDateString('th-TH', {
+                                                year: 'numeric',
+                                                month: 'short',
+                                                day: 'numeric'
+                                            })
+                                            : 'No activity yet'}
+                                    </p>
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Forecast Value</label>
-                                <p className="text-sm font-medium text-gray-900">
-                                    {formatCurrency((deal.value * deal.probability) / 100, deal.currency)}
-                                </p>
-                            </div>
-                        </div>
 
-                        <div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1">Last Interaction</label>
-                                <p className="text-sm text-gray-900">
-                                    {deal.activities?.[0]
-                                        ? new Date(deal.activities[0].createdAt).toLocaleDateString()
-                                        : '-'
-                                    }
-                                </p>
-                            </div>
                         </div>
                     </div>
 

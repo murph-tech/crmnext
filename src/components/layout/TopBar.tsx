@@ -41,7 +41,13 @@ export default function TopBar({ sidebarCollapsed, onMobileMenuToggle, isMobile 
                 } catch (e) {
                     setHasUnread(true);
                 }
-            }).catch(console.error);
+            }).catch(err => {
+                // In development mode, mock data is returned automatically
+                // In production, this error would indicate backend issues
+                if (process.env.NODE_ENV !== 'development') {
+                    console.error('Failed to load reminders:', err);
+                }
+            });
         }
     }, [token]);
 

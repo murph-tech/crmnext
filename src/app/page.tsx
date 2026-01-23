@@ -35,15 +35,22 @@ export default function DashboardPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [timeFrame, setTimeFrame] = useState('week');
+  const [startDate, setStartDate] = useState<string>(''); // YYYY-MM-DD
+  const [endDate, setEndDate] = useState<string>(''); // YYYY-MM-DD
 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
+        const opts =
+          startDate && endDate
+            ? { startDate, endDate }
+            : { timeframe: timeFrame };
+
         const promises: Promise<any>[] = [
-          api.getDashboardStats(token!, timeFrame),
-          api.getRecentActivity(token!, timeFrame),
+          api.getDashboardStats(token!, opts),
+          api.getRecentActivity(token!, opts),
           api.getReminders(token!), // Reminders usually future facing, keeping as is
         ];
 
@@ -53,7 +60,11 @@ export default function DashboardPage() {
         setActivities(results[1]);
         setReminders(results[2]);
       } catch (error) {
-        console.error('Failed to load dashboard data:', error);
+        // In development mode, mock data is returned automatically
+        // In production, this error would indicate backend issues
+        if (process.env.NODE_ENV !== 'development') {
+          console.error('Failed to load dashboard data:', error);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -62,7 +73,7 @@ export default function DashboardPage() {
     if (token) {
       loadDashboardData();
     }
-  }, [token, timeFrame]);
+  }, [token, timeFrame, startDate, endDate]);
 
   if (isLoading) {
     return (
@@ -76,7 +87,7 @@ export default function DashboardPage() {
     {
       title: 'รายรับรวม',
       value: formatCurrency(stats?.totalRevenue || 0),
-      change: { value: '12.5%', positive: true },
+      change: stats?.totalRevenue ? { value: '+12.5%', positive: true } : undefined, // TODO: Calculate real change
       icon: DollarSign,
       color: '#007AFF', // Blue
       href: '/pipeline',
@@ -84,7 +95,7 @@ export default function DashboardPage() {
     {
       title: 'ลูกค้าใหม่',
       value: String(stats?.newLeads || 0),
-      change: { value: '8.2%', positive: true },
+      change: stats?.newLeads ? { value: '+8.2%', positive: true } : undefined, // TODO: Calculate real change
       icon: Users,
       color: '#34C759', // Green
       href: '/leads',
@@ -92,7 +103,7 @@ export default function DashboardPage() {
     {
       title: 'ดีลที่กำลังดำเนินการ',
       value: String(stats?.activeDeals || 0),
-      change: { value: '3.1%', positive: false },
+      change: stats?.activeDeals ? { value: '+3.1%', positive: true } : undefined, // TODO: Calculate real change
       icon: TrendingUp,
       color: '#FF9500', // Orange
       href: '/pipeline',
@@ -100,7 +111,7 @@ export default function DashboardPage() {
     {
       title: 'อัตราการปิดการขาย',
       value: `${stats?.conversionRate || 0}%`,
-      change: { value: '5.4%', positive: true },
+      change: stats?.conversionRate ? { value: '+5.4%', positive: true } : undefined, // TODO: Calculate real change
       icon: Target,
       color: '#AF52DE', // Purple
       href: '/leads',
@@ -121,7 +132,11 @@ export default function DashboardPage() {
 
   const wonDealsWidget = (
     <div className="h-[400px]">
-      <WonDealsChart timeframe={timeFrame} />
+      <WonDealsChart
+        timeframe={timeFrame}
+        startDate={startDate || undefined}
+        endDate={endDate || undefined}
+      />
     </div>
   );
 
@@ -342,7 +357,11 @@ export default function DashboardPage() {
 
   const dealsCountWidget = (
     <div className="h-[400px]">
-      <DealsCountChart timeframe={timeFrame} />
+      <DealsCountChart
+        timeframe={timeFrame}
+        startDate={startDate || undefined}
+        endDate={endDate || undefined}
+      />
     </div>
   );
 
@@ -365,19 +384,53 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          <div className="flex bg-white rounded-xl p-1 shadow-sm border border-gray-100">
-            {['week', 'month', 'year'].map((t) => (
-              <button
-                key={t}
-                onClick={() => setTimeFrame(t)}
-                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${timeFrame === t
-                  ? 'bg-gray-900 text-white shadow-md'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-              >
-                {t.charAt(0).toUpperCase() + t.slice(1)}
-              </button>
-            ))}
+          <div className="flex flex-col gap-3 items-end">
+            <div className="flex bg-white rounded-xl p-1 shadow-sm border border-gray-100">
+              {['week', 'month', 'year'].map((t) => (
+                <button
+                  key={t}
+                  onClick={() => {
+                    setTimeFrame(t);
+                    setStartDate('');
+                    setEndDate('');
+                  }}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${timeFrame === t && !startDate && !endDate
+                    ? 'bg-gray-900 text-white shadow-md'
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                >
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 bg-white rounded-xl px-3 py-2 shadow-sm border border-gray-100">
+              <span className="text-sm font-medium text-gray-600">ช่วงวันที่</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="text-sm px-2 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+              />
+              <span className="text-sm text-gray-400">ถึง</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="text-sm px-2 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+              />
+              {(startDate || endDate) && (
+                <button
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                  }}
+                  className="text-xs font-medium px-2 py-1 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                >
+                  ล้าง
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </motion.div>

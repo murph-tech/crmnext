@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../db';
-import { authenticate, authorize, AuthRequest } from '../middleware/auth.middleware';
+import { authenticate, authorize, AuthRequest, getDealAccessFilter } from '../middleware/auth.middleware';
 import { calculateDocumentTotals } from '../utils/calculation';
 
 const router = Router();
@@ -109,6 +109,16 @@ router.post('/deals/:id/invoice', async (req: AuthRequest, res, next) => {
                 select: { invoiceNumber: true }
             })
         ]);
+
+        // Check access permissions
+        const dealAccessCheck = await prisma.deal.findFirst({
+            where: { id: dealId, ...getDealAccessFilter(req.user) },
+            select: { id: true }
+        });
+
+        if (!dealAccessCheck) {
+            return res.status(403).json({ error: 'Access denied to this deal' });
+        }
 
         if (!deal) {
             return res.status(404).json({ error: 'Deal not found' });
@@ -242,8 +252,9 @@ router.post('/deals/:id/invoice', async (req: AuthRequest, res, next) => {
 
         res.status(201).json(invoice);
 
-    } catch (error) {
-        next(error);
+    } catch (error: any) {
+        console.error('Convert Invoice Error:', error);
+        res.status(500).json({ error: error.message || 'Failed to generate invoice' });
     }
 });
 

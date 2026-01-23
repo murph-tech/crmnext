@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GitBranch, Plus, Loader2, Edit2, Trash2, GripVertical, Users, Download } from 'lucide-react';
+import { GitBranch, Plus, Loader2, Edit2, Trash2, GripVertical, Users, Download, Search, Filter, ArrowUpDown, ChevronDown, MoreHorizontal, X, ArrowUp, ArrowDown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
@@ -31,6 +31,8 @@ import {
     useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { ColumnDef } from '@/types/table';
+import { ColumnHeader } from '@/components/ui/ColumnHeader';
 
 // --- Types ---
 
@@ -46,6 +48,9 @@ interface Deal {
     notes?: string;
     owner?: { id: string; name: string; email: string };
     activities?: any[];
+    createdAt: string;
+    expectedCloseDate?: string;
+    quotationNumber?: string;
 }
 
 interface Stage {
@@ -56,11 +61,12 @@ interface Stage {
 }
 
 const stageConfig: Record<string, { label: string; color: string }> = {
-    QUALIFIED: { label: 'Qualified', color: '#007AFF' },
-    PROPOSAL: { label: 'Proposal', color: '#5856D6' },
-    NEGOTIATION: { label: 'Negotiation', color: '#AF52DE' },
-    CLOSED_WON: { label: 'Closed Won', color: '#34C759' },
-    CLOSED_LOST: { label: 'Closed Lost', color: '#FF3B30' },
+    QUALIFIED: { label: 'New', color: '#2563EB' }, // Blue-600
+    DISCOVERY: { label: 'Discovery', color: '#4F46E5' }, // Indigo-600
+    PROPOSAL: { label: 'Proposal', color: '#7C3AED' }, // Violet-600
+    NEGOTIATION: { label: 'Negotiation', color: '#F97316' }, // Orange-500
+    CLOSED_WON: { label: 'Closed Won', color: '#10B981' }, // Emerald-600
+    CLOSED_LOST: { label: 'Closed Lost', color: '#DC2626' }, // Red-600
 };
 
 // --- Helper Components ---
@@ -307,6 +313,76 @@ export default function PipelinePage() {
     const [users, setUsers] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    const DEFAULT_COLUMNS: ColumnDef[] = [
+        { id: 'title', label: 'Deal / Contact', width: '2fr', minWidth: 200, visible: true, filterValue: '' },
+        { id: 'company', label: 'Company', width: 150, minWidth: 100, visible: true, filterValue: '' },
+        { id: 'value', label: 'Value / Quote', width: 140, minWidth: 100, visible: true, filterValue: '' },
+        { id: 'stage', label: 'Stage', width: 120, minWidth: 100, visible: true, filterValue: '' },
+        { id: 'progress', label: 'Progress', width: 100, minWidth: 80, visible: true, filterValue: '' },
+        { id: 'activity', label: 'Recent Activity', width: 220, minWidth: 150, visible: true, filterValue: '' },
+        { id: 'timeline', label: 'Timeline', width: 140, minWidth: 120, visible: true, filterValue: '' },
+        { id: 'owner', label: 'Owner', width: 100, minWidth: 80, visible: true, filterValue: '' },
+    ];
+
+    const [columns, setColumns] = useState<ColumnDef[]>(DEFAULT_COLUMNS);
+    const [isInitialized, setIsInitialized] = useState(false);
+
+    // Persistence Effect: Load
+    useEffect(() => {
+        const saved = localStorage.getItem('crm_deal_columns_v1');
+        if (saved) {
+            try {
+                const config = JSON.parse(saved);
+                // Merge saved config with defaults (to handle new columns added in code)
+                const merged = config.map((savedCol: any) => {
+                    const original = DEFAULT_COLUMNS.find(c => c.id === savedCol.id);
+                    if (!original) return null;
+                    return { ...original, ...savedCol, filterValue: '' }; // Don't persist filters
+                }).filter(Boolean);
+
+                // Add any columns that are in DEFAULT but not in saved config
+                DEFAULT_COLUMNS.forEach(defCol => {
+                    if (!merged.find((m: any) => m.id === defCol.id)) {
+                        merged.push(defCol);
+                    }
+                });
+
+                setColumns(merged);
+            } catch (e) {
+                console.warn('Failed to parse saved columns', e);
+            }
+        }
+        setIsInitialized(true);
+    }, []);
+
+    // Persistence Effect: Save
+    useEffect(() => {
+        if (!isInitialized) return;
+
+        // Only save structural layout, not values
+        const configToSave = columns.map(({ id, width, visible }) => ({ id, width, visible }));
+        localStorage.setItem('crm_deal_columns_v1', JSON.stringify(configToSave));
+    }, [columns, isInitialized]);
+
+    const handleResize = (id: string, width: number) => {
+        setColumns(prev => prev.map(col => col.id === id ? { ...col, width } : col));
+    };
+
+    const handleFilterChange = (id: string, value: string) => {
+        setColumns(prev => prev.map(col => col.id === id ? { ...col, filterValue: value } : col));
+    };
+
+    const handleColumnMove = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            setColumns((items) => {
+                const oldIndex = items.findIndex(i => i.id === active.id);
+                const newIndex = items.findIndex(i => i.id === over.id);
+                return arrayMove(items, oldIndex, newIndex);
+            });
+        }
+    };
+
     const [search, setSearch] = useState('');
     const [isExporting, setIsExporting] = useState(false);
 
@@ -355,7 +431,6 @@ export default function PipelinePage() {
     useEffect(() => {
         if (token) {
             loadPipeline();
-            loadPipeline();
             loadContacts();
             loadUsers();
         }
@@ -366,7 +441,11 @@ export default function PipelinePage() {
             const data = await api.getUsers(token!);
             setUsers(data);
         } catch (error) {
-            console.error('Failed to load users:', error);
+            // In development mode, mock data is returned automatically
+            // In production, this error would indicate backend issues
+            if (process.env.NODE_ENV !== 'development') {
+                console.error('Failed to load users:', error);
+            }
         }
     };
 
@@ -375,7 +454,11 @@ export default function PipelinePage() {
             const data = await api.getPipeline(token!, search);
             setPipeline(data as any);
         } catch (error) {
-            console.error('Failed to load pipeline:', error);
+            // In development mode, mock data is returned automatically
+            // In production, this error would indicate backend issues
+            if (process.env.NODE_ENV !== 'development') {
+                console.error('Failed to load pipeline:', error);
+            }
         } finally {
             setIsLoading(false);
         }
@@ -386,7 +469,11 @@ export default function PipelinePage() {
             const data = await api.getContacts(token!);
             setContacts(data);
         } catch (error) {
-            console.error('Failed to load contacts:', error);
+            // In development mode, mock data is returned automatically
+            // In production, this error would indicate backend issues
+            if (process.env.NODE_ENV !== 'development') {
+                console.error('Failed to load contacts:', error);
+            }
         }
     };
 
@@ -555,6 +642,41 @@ export default function PipelinePage() {
         }),
     };
 
+    const filteredDeals = useMemo(() => {
+        const allDeals = pipeline.flatMap(stage => stage.deals);
+        return allDeals.filter(deal => {
+            return columns.every(col => {
+                if (!col.filterValue) return true;
+                const searchLower = col.filterValue.toLowerCase();
+
+                switch (col.id) {
+                    case 'title':
+                        return deal.title.toLowerCase().includes(searchLower) ||
+                            (deal.contact && (deal.contact.firstName + ' ' + deal.contact.lastName).toLowerCase().includes(searchLower));
+                    case 'company':
+                        return (deal.contact?.company || '').toLowerCase().includes(searchLower);
+                    case 'value':
+                        return deal.value.toString().includes(searchLower) || (deal.quotationNumber || '').toLowerCase().includes(searchLower);
+                    case 'stage':
+                        return deal.stage.toLowerCase().includes(searchLower);
+                    case 'owner':
+                        return (deal.owner?.name || '').toLowerCase().includes(searchLower);
+                    case 'timeline':
+                        return new Date(deal.createdAt).toLocaleDateString().includes(searchLower) ||
+                            (deal.expectedCloseDate && new Date(deal.expectedCloseDate).toLocaleDateString().includes(searchLower));
+                    case 'activity':
+                        return deal.activities?.some(a => (a.title + ' ' + a.type).toLowerCase().includes(searchLower));
+                    default:
+                        return true;
+                }
+            });
+        });
+    }, [pipeline, columns]);
+
+    const gridTemplateColumns = useMemo(() => {
+        return `40px ${columns.filter(c => c.visible).map(c => typeof c.width === 'number' ? `${c.width}px` : c.width).join(' ')}`;
+    }, [columns]);
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-64">
@@ -587,246 +709,258 @@ export default function PipelinePage() {
             </motion.div>
 
             {/* Deals List */}
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex-1 flex flex-col">
-                {/* Desktop Table Header */}
-                <div className="hidden md:grid grid-cols-[40px_minmax(200px,3fr)_100px_100px_140px_160px_120px_minmax(150px,2fr)] gap-4 px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider items-center">
-                    <div className="flex justify-center">
-                        <input type="checkbox" className="rounded border-gray-300 text-[#007AFF] focus:ring-[#007AFF]" />
-                    </div>
-                    <div>Deal</div>
-                    <div>Progress</div>
-                    <div>Activities Timeline</div>
-                    <div>Stage</div>
-                    <div>Owner</div>
-                    <div>Deal Value</div>
-                    <div>Contacts</div>
-                </div>
-
-                {/* List Body */}
-                <div className="overflow-y-auto flex-1">
-                    {pipeline.flatMap(stage => stage.deals).map((deal) => {
-                        const stageInfo = stageConfig[deal.stage] || { label: deal.stage, color: '#6B7280' };
-
-                        return (
-                            <div key={deal.id} className="group border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-                                {/* Desktop Row */}
-                                <div className="hidden md:grid grid-cols-[40px_minmax(200px,3fr)_100px_100px_140px_160px_120px_minmax(150px,2fr)] gap-4 px-4 py-3 items-center text-sm">
-                                    <div className="flex justify-center">
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm flex-1 flex flex-col relative overflow-hidden">
+                <div className="overflow-x-auto flex-1 flex flex-col min-w-full">
+                    <div className="min-w-[1000px] flex flex-col flex-1">
+                        {/* Desktop Table Header */}
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCorners}
+                            onDragEnd={handleColumnMove}
+                        >
+                            <SortableContext items={columns.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                                <div
+                                    className="hidden md:grid gap-0 border-b border-gray-200 bg-gray-50 items-center sticky top-0 z-20"
+                                    style={{ gridTemplateColumns }}
+                                >
+                                    <div className="flex justify-center px-4 py-3 h-full items-center border-r border-gray-200 bg-gray-50">
                                         <input type="checkbox" className="rounded border-gray-300 text-[#007AFF] focus:ring-[#007AFF]" />
                                     </div>
-
-                                    {/* Deal Name & Actions */}
-                                    <div className="flex items-center justify-between pr-4 min-w-0">
-                                        <a href={`/pipeline/${deal.id}`} className="font-medium text-gray-900 truncate hover:text-[#007AFF] transition-colors cursor-pointer block">
-                                            {deal.title}
-                                        </a>
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0">
-                                            <button
-                                                onClick={() => { setSelectedDeal(deal); setShowEditModal(true); }}
-                                                className="p-1 hover:bg-gray-200 rounded text-gray-500"
-                                            >
-                                                <Edit2 size={14} />
-                                            </button>
-                                            <button
-                                                onClick={() => { setSelectedDeal(deal); setShowDeleteModal(true); }}
-                                                className="p-1 hover:bg-red-50 rounded text-red-500"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Stage Progress */}
-                                    <div className="flex gap-0.5 items-center justify-start h-full">
-                                        {(() => {
-                                            const stages = ['QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON'];
-                                            const currentStageIndex = stages.indexOf(deal.stage);
-                                            const isLost = deal.stage === 'CLOSED_LOST';
-
-                                            return stages.map((stage, i) => {
-                                                const isActive = i === currentStageIndex;
-                                                const isCompleted = !isLost && (currentStageIndex > i || deal.stage === 'CLOSED_WON');
-                                                const stageColor = stageConfig[stage]?.color || '#007AFF';
-
-                                                let style: React.CSSProperties = { backgroundColor: '#f3f4f6' };
-
-                                                if (isLost) {
-                                                    // Keep gray
-                                                } else if (isCompleted) {
-                                                    style = { backgroundColor: stageColor };
-                                                } else if (isActive) {
-                                                    style = { backgroundColor: stageColor };
-                                                }
-
-                                                return (
-                                                    <div
-                                                        key={stage}
-                                                        className={`w-5 h-1 rounded-full transition-all ${isActive ? 'ring-1 ring-offset-1 ring-opacity-50' : ''}`}
-                                                        style={style}
-                                                        title={stageConfig[stage]?.label || stage}
-                                                    />
-                                                );
-                                            });
-                                        })()}
-                                    </div>
-
-                                    {/* Activities Timeline */}
-                                    <div className="flex gap-0.5 items-center justify-start h-full">
-                                        {(deal.activities && deal.activities.length > 0) ? (
-                                            <>
-                                                {deal.activities
-                                                    .sort((a, b) => {
-                                                        const dateA = new Date(a.dueDate || a.createdAt).getTime();
-                                                        const dateB = new Date(b.dueDate || b.createdAt).getTime();
-                                                        return dateA - dateB;
-                                                    })
-                                                    .slice(-5)
-                                                    .map((activity, i) => {
-                                                        let colorClass = 'bg-gray-200';
-                                                        const isCompleted = activity.completed;
-
-                                                        // Handle invalid date safely
-                                                        const dueDate = activity.dueDate ? new Date(activity.dueDate) : null;
-                                                        const now = new Date();
-
-                                                        const isOverdue = !isCompleted && dueDate && dueDate < now;
-                                                        // If not completed and not overdue (or no due date), consider it upcoming/future
-                                                        const isFuture = !isCompleted && (!dueDate || dueDate >= now);
-
-                                                        if (isCompleted) colorClass = 'bg-emerald-400'; // Green for completed to be clearer
-                                                        else if (isOverdue) colorClass = 'bg-red-400';
-                                                        else if (isFuture) colorClass = 'bg-blue-400';
-
-                                                        return (
-                                                            <div
-                                                                key={activity.id}
-                                                                className={`w-1 h-2.5 rounded-[1px] ${colorClass}`}
-                                                                title={`${activity.title} (${activity.type}) - ${isCompleted ? 'Completed' : isOverdue ? 'Overdue' : 'Upcoming'}`}
-                                                            />
-                                                        );
-                                                    })}
-                                            </>
-                                        ) : (
-                                            <span className="text-[10px] text-gray-300">-</span>
-                                        )}
-                                    </div>
-
-                                    {/* Stage Dropdown */}
-                                    <div className="relative">
-                                        <StageSelector
-                                            currentStage={deal.stage}
-                                            onStageChange={async (newStage) => {
-                                                try {
-                                                    await api.updateDealStage(token!, deal.id, newStage);
-                                                    // Optimistic update or reload
-                                                    await loadPipeline();
-                                                } catch (error) {
-                                                    console.error('Failed to change stage', error);
-                                                }
-                                            }}
+                                    {columns.filter(c => c.visible).map((col, idx) => (
+                                        <ColumnHeader
+                                            key={col.id}
+                                            column={col}
+                                            onResize={handleResize}
+                                            onFilterChange={handleFilterChange}
+                                            index={idx}
                                         />
-                                    </div>
+                                    ))}
+                                </div>
+                            </SortableContext>
+                        </DndContext>
 
-                                    {/* Owner */}
-                                    <OwnerSelector
-                                        currentOwner={deal.owner}
-                                        users={users}
-                                        currentUserRole={user?.role}
-                                        onOwnerChange={async (userId) => {
-                                            try {
-                                                await api.updateDeal(token!, deal.id, { ownerId: userId });
-                                                await loadPipeline();
-                                            } catch (error) {
-                                                console.error('Failed to change owner', error);
-                                            }
-                                        }}
-                                    />
+                        {/* List Body */}
+                        <div className="overflow-y-auto flex-1 bg-white">
+                            {filteredDeals.length > 0 ? filteredDeals.map((deal) => {
+                                const stageInfo = stageConfig[deal.stage] || { label: deal.stage, color: '#6B7280' };
 
-                                    {/* Value */}
-                                    <div className="text-gray-900 font-medium">
-                                        {formatCurrency(deal.value, deal.currency)}
-                                    </div>
-
-                                    {/* Contacts */}
-                                    <div>
-                                        {deal.contact ? (
-                                            <div className="flex flex-col">
-                                                <div className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-900">
-                                                    <Users size={12} className="text-[#007AFF]" />
-                                                    {deal.contact.firstName} {deal.contact.lastName}
-                                                </div>
-                                                {deal.contact.company && (
-                                                    <div className="text-[11px] text-gray-500 pl-4 truncate max-w-[120px]">
-                                                        {deal.contact.company}
-                                                    </div>
-                                                )}
+                                return (
+                                    <div key={deal.id} className="group border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                                        <div
+                                            className="hidden md:grid gap-0 items-center text-sm"
+                                            style={{ gridTemplateColumns }}
+                                        >
+                                            <div className="flex justify-center border-r border-gray-100/50 h-full items-center">
+                                                <input type="checkbox" className="rounded border-gray-300 text-[#007AFF] focus:ring-[#007AFF]" />
                                             </div>
-                                        ) : (
-                                            <span className="text-gray-400 text-xs italic">No contact</span>
-                                        )}
+
+                                            {/* Render Cells dynamically based on column order */}
+                                            {columns.filter(c => c.visible).map(col => {
+                                                switch (col.id) {
+                                                    case 'title':
+                                                        return (
+                                                            <div key={col.id} className="flex items-center justify-between px-4 py-3 min-w-0 border-r border-gray-100/50 h-full">
+                                                                <div className="flex flex-col min-w-0">
+                                                                    <a href={`/pipeline/${deal.id}`} className="font-bold text-gray-900 truncate hover:text-[#007AFF] transition-colors cursor-pointer block">
+                                                                        {deal.title}
+                                                                    </a>
+                                                                    {deal.contact && (
+                                                                        <div className="flex items-center gap-1 text-[10px] font-bold text-gray-400 mt-0.5 uppercase tracking-wider">
+                                                                            <Users size={10} />
+                                                                            {deal.contact.firstName} {deal.contact.lastName}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0">
+                                                                    <button onClick={() => { setSelectedDeal(deal); setShowEditModal(true); }} className="p-1 hover:bg-gray-200 rounded text-gray-500">
+                                                                        <Edit2 size={14} />
+                                                                    </button>
+                                                                    <button onClick={() => { setSelectedDeal(deal); setShowDeleteModal(true); }} className="p-1 hover:bg-red-50 rounded text-red-500">
+                                                                        <Trash2 size={14} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    case 'company':
+                                                        return (
+                                                            <div key={col.id} className="text-gray-700 font-bold italic truncate px-4 py-3 border-r border-gray-100/50 h-full flex items-center">
+                                                                {deal.contact?.company || <span className="text-gray-300 font-normal">-</span>}
+                                                            </div>
+                                                        );
+                                                    case 'value':
+                                                        return (
+                                                            <div key={col.id} className="flex flex-col px-4 py-3 border-r border-gray-100/50 h-full justify-center">
+                                                                <div className="text-sm font-black text-gray-900">
+                                                                    {formatCurrency(deal.value, deal.currency)}
+                                                                </div>
+                                                                <div className="text-[10px] font-black text-[#007AFF] uppercase tracking-tighter">
+                                                                    #{deal.quotationNumber || 'NO-QUOTE'}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    case 'stage':
+                                                        return (
+                                                            <div key={col.id} className="relative px-4 py-3 border-r border-gray-100/50 h-full flex items-center">
+                                                                <StageSelector
+                                                                    currentStage={deal.stage}
+                                                                    onStageChange={async (newStage) => {
+                                                                        try {
+                                                                            await api.updateDealStage(token!, deal.id, newStage);
+                                                                            await loadPipeline();
+                                                                        } catch (error) {
+                                                                            console.error('Failed to change stage', error);
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        );
+                                                    case 'progress':
+                                                        return (
+                                                            <div key={col.id} className="flex gap-0.5 items-center justify-start h-full px-4 border-r border-gray-100/50">
+                                                                {(() => {
+                                                                    const stagesArr = ['QUALIFIED', 'DISCOVERY', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON'];
+                                                                    const currentIdx = stagesArr.indexOf(deal.stage);
+                                                                    const isLost = deal.stage === 'CLOSED_LOST';
+                                                                    return stagesArr.map((s, i) => (
+                                                                        <div
+                                                                            key={s}
+                                                                            className={`w-2.5 h-1 rounded-full transition-all ${i === currentIdx ? 'ring-1 ring-offset-1 ring-[#007AFF]/30' : ''}`}
+                                                                            style={{ backgroundColor: !isLost && (currentIdx >= i) ? (stageConfig[s]?.color || '#2563EB') : '#f3f4f6' }}
+                                                                        />
+                                                                    ));
+                                                                })()}
+                                                            </div>
+                                                        );
+                                                    case 'activity':
+                                                        return (
+                                                            <div key={col.id} className="truncate px-4 border-r border-gray-100/50 h-full flex items-center">
+                                                                {deal.activities && deal.activities.length > 0 ? (
+                                                                    <div className="flex flex-col gap-0.5 bg-gray-50/40 p-2 rounded-xl border border-gray-100/50 w-full">
+                                                                        <div className="flex items-center gap-1.5 min-w-0">
+                                                                            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${deal.activities[0].completed ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                                                            <span className="text-[10px] font-black text-gray-700 truncate uppercase tracking-tighter">
+                                                                                {deal.activities[0].type}
+                                                                            </span>
+                                                                        </div>
+                                                                        <span className="text-[11px] font-bold text-gray-400 truncate pl-3">
+                                                                            {deal.activities[0].title}
+                                                                        </span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="text-gray-300 text-[10px] italic font-normal pl-2">No active history</span>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    case 'timeline':
+                                                        return (
+                                                            <div key={col.id} className="flex flex-col gap-1 px-4 border-r border-gray-100/50 h-full justify-center">
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="text-[9px] font-black text-gray-300 uppercase">START</span>
+                                                                    <span className="text-[10px] font-black text-gray-600">{new Date(deal.createdAt).toLocaleDateString()}</span>
+                                                                </div>
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="text-[9px] font-black text-gray-300 uppercase">EXPECT</span>
+                                                                    <span className="text-[10px] font-black text-blue-500">
+                                                                        {deal.expectedCloseDate ? new Date(deal.expectedCloseDate).toLocaleDateString() : '-'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    case 'owner':
+                                                        return (
+                                                            <div key={col.id} className="flex justify-center px-4 h-full items-center">
+                                                                <OwnerSelector
+                                                                    currentOwner={deal.owner}
+                                                                    users={users}
+                                                                    currentUserRole={user?.role}
+                                                                    onOwnerChange={async (userId) => {
+                                                                        try {
+                                                                            await api.updateDeal(token!, deal.id, { ownerId: userId });
+                                                                            await loadPipeline();
+                                                                        } catch (error) {
+                                                                            console.error('Failed to change owner', error);
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        );
+                                                    default: return null;
+                                                }
+                                            })}
+                                        </div>
+
+                                        {/* Mobile Card View */}
+                                        <div className="md:hidden p-4 space-y-3">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <a href={`/pipeline/${deal.id}`} className="font-medium text-gray-900 hover:text-[#007AFF]">
+                                                        {deal.title}
+                                                    </a>
+                                                    <p className="text-xs text-gray-500 mt-0.5">{deal.contact?.company || 'No Company'}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="font-medium text-gray-900">{formatCurrency(deal.value, deal.currency)}</div>
+                                                    <div className="text-xs text-gray-400">{deal.probability}%</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-between gap-4 pt-2 border-t border-gray-100">
+                                                <div className="w-1/2">
+                                                    <StageSelector
+                                                        currentStage={deal.stage}
+                                                        onStageChange={async (newStage) => {
+                                                            try {
+                                                                await api.updateDealStage(token!, deal.id, newStage);
+                                                                await loadPipeline();
+                                                            } catch (error) {
+                                                                console.error('Failed to change stage', error);
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => { setSelectedDeal(deal); setShowEditModal(true); }}
+                                                        className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => { setSelectedDeal(deal); setShowDeleteModal(true); }}
+                                                        className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
+                                );
+                            }) : (
+                                <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+                                    <Search size={48} className="mb-4 opacity-20" />
+                                    <p className="font-bold">ไม่พบข้อมูลที่ตรงกับเงื่อนไขการค้นหา</p>
+                                    <button
+                                        onClick={() => setColumns(prev => prev.map(c => ({ ...c, filterValue: '' })))}
+                                        className="mt-4 text-[#007AFF] text-sm font-black hover:underline"
+                                    >
+                                        ล้างตัวกรองทั้งหมด
+                                    </button>
                                 </div>
+                            )}
 
-                                {/* Mobile Card View */}
-                                <div className="md:hidden p-4 space-y-3">
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <a href={`/pipeline/${deal.id}`} className="font-medium text-gray-900 hover:text-[#007AFF]">
-                                                {deal.title}
-                                            </a>
-                                            <p className="text-xs text-gray-500 mt-0.5">{deal.contact?.company || 'No Company'}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="font-medium text-gray-900">{formatCurrency(deal.value, deal.currency)}</div>
-                                            <div className="text-xs text-gray-400">{deal.probability}%</div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center justify-between gap-4 pt-2 border-t border-gray-100">
-                                        <div className="w-1/2">
-                                            <StageSelector
-                                                currentStage={deal.stage}
-                                                onStageChange={async (newStage) => {
-                                                    try {
-                                                        await api.updateDealStage(token!, deal.id, newStage);
-                                                        await loadPipeline();
-                                                    } catch (error) {
-                                                        console.error('Failed to change stage', error);
-                                                    }
-                                                }}
-                                            />
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => { setSelectedDeal(deal); setShowEditModal(true); }}
-                                                className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg"
-                                            >
-                                                Edit
-                                            </button>
-                                            <button
-                                                onClick={() => { setSelectedDeal(deal); setShowDeleteModal(true); }}
-                                                className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg"
-                                            >
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </div>
+                            {/* Add Deal Row */}
+                            <button
+                                onClick={() => setShowAddModal(true)}
+                                className="w-full flex items-center gap-3 px-4 py-4 text-sm text-gray-500 hover:bg-gray-50 hover:text-[#007AFF] transition-colors border-b border-gray-100 text-left"
+                            >
+                                <div className="w-10 flex justify-center">
+                                    <Plus size={18} strokeWidth={3} />
                                 </div>
-                            </div>
-                        );
-                    })}
-
-                    {/* Add Deal Row */}
-                    <button
-                        onClick={() => setShowAddModal(true)}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-500 hover:bg-gray-50 hover:text-[#007AFF] transition-colors border-b border-gray-100 text-left"
-                    >
-                        <div className="w-10 flex justify-center">
-                            <div className="w-4 h-4 rounded border border-gray-300 bg-white" />
+                                <span className="font-black uppercase tracking-widest text-[11px]">Add new deal</span>
+                            </button>
                         </div>
-                        <Plus size={16} />
-                        <span className="font-medium">Add deal</span>
-                    </button>
+                    </div>
                 </div>
             </div>
 

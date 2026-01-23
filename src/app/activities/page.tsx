@@ -1,12 +1,49 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, Plus, Search, Filter, CheckCircle2, Clock, Phone, Mail, Users, FileText, Trash2, Edit2, Loader2, ChevronDown, ChevronRight, CornerDownRight, Layers } from 'lucide-react';
+import {
+    Calendar,
+    Plus,
+    Search,
+    Filter,
+    CheckCircle2,
+    Clock,
+    Phone,
+    Mail,
+    Users,
+    FileText,
+    Trash2,
+    Edit2,
+    Loader2,
+    ChevronDown,
+    ChevronRight,
+    CornerDownRight,
+    Layers,
+    GripVertical,
+    X
+} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import Modal from '@/components/ui/Modal';
 import ActivityForm from '@/components/activities/ActivityForm';
+import { ColumnDef } from '@/types/table';
+import { ColumnHeader } from '@/components/ui/ColumnHeader';
+import {
+    DndContext,
+    closestCorners,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 
 import { Activity } from '@/types';
 
@@ -26,10 +63,22 @@ const typeColors: Record<string, string> = {
     DEADLINE: '#FF3B30',
 };
 
+const DEFAULT_COLUMNS: ColumnDef[] = [
+    { id: 'type', label: 'Type', width: 60, minWidth: 50, visible: true, filterValue: '' },
+    { id: 'activity', label: 'Activity', width: '2fr', minWidth: 200, visible: true, filterValue: '' },
+    { id: 'dueDate', label: 'Due Date', width: '1fr', minWidth: 120, visible: true, filterValue: '' },
+    { id: 'relatedTo', label: 'Related To', width: '1.5fr', minWidth: 150, visible: true, filterValue: '' },
+    { id: 'company', label: 'Company', width: '1.5fr', minWidth: 150, visible: true, filterValue: '' },
+    { id: 'status', label: 'Status', width: 80, minWidth: 70, visible: true, filterValue: '' },
+    { id: 'owner', label: 'Owner', width: 80, minWidth: 70, visible: true, filterValue: '' },
+];
+
 export default function ActivitiesPage() {
     const { token } = useAuth();
     const [activities, setActivities] = useState<Activity[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [columns, setColumns] = useState<ColumnDef[]>(DEFAULT_COLUMNS);
+    const [isInitialized, setIsInitialized] = useState(false);
     const [filter, setFilter] = useState<'ALL' | 'UPCOMING' | 'COMPLETED'>('ALL');
 
     // Grouping State
@@ -42,11 +91,71 @@ export default function ActivitiesPage() {
     const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // --- Persistence ---
+    useEffect(() => {
+        const saved = localStorage.getItem('crm_activities_columns_v1');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                const merged = DEFAULT_COLUMNS.map(col => {
+                    const existing = parsed.find((p: any) => p.id === col.id);
+                    return existing ? { ...col, ...existing, filterValue: '' } : col;
+                });
+                setColumns(merged);
+            } catch (e) {
+                console.error('Failed to parse columns', e);
+            }
+        }
+        setIsInitialized(true);
+    }, []);
+
+    useEffect(() => {
+        if (isInitialized) {
+            localStorage.setItem('crm_activities_columns_v1', JSON.stringify(columns.map(({ id, width, visible }) => ({ id, width, visible }))));
+        }
+    }, [columns, isInitialized]);
+
+    // --- Sensors ---
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
+
+    const handleColumnMove = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            setColumns((items) => {
+                const oldIndex = items.findIndex((i) => i.id === active.id);
+                const newIndex = items.findIndex((i) => i.id === over.id);
+                return arrayMove(items, oldIndex, newIndex);
+            });
+        }
+    };
+
+    const handleResize = (id: string, width: number) => {
+        setColumns(prev => prev.map(col => col.id === id ? { ...col, width } : col));
+    };
+
+    const handleFilterChange = (id: string, value: string) => {
+        setColumns(prev => prev.map(col => col.id === id ? { ...col, filterValue: value } : col));
+    };
+
+    const gridTemplateColumns = useMemo(() => {
+        const cols = columns.filter(c => c.visible).map(c =>
+            typeof c.width === 'number' ? `${c.width}px` : c.width
+        );
+        return `40px ${cols.join(' ')}`;
+    }, [columns]);
+
     useEffect(() => {
         if (token) loadActivities();
     }, [token, filter]);
 
     const loadActivities = async () => {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/082deaa4-153a-4a98-a990-54ae31ef6246', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/app/activities/page.tsx:57', message: 'loadActivities called', data: { token: token ? 'present' : 'missing', filter: filter }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'initial', hypothesisId: 'A' }) }).catch(() => { });
+        // #endregion
+
         setIsLoading(true);
         try {
             let data;
@@ -60,6 +169,10 @@ export default function ActivitiesPage() {
             }
             setActivities(data);
         } catch (error) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/082deaa4-153a-4a98-a990-54ae31ef6246', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/app/activities/page.tsx:80', message: 'loadActivities error', data: { error: error?.message || 'unknown', filter: filter }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'initial', hypothesisId: 'A' }) }).catch(() => { });
+            // #endregion
+
             console.error('Failed to load activities:', error);
         } finally {
             setIsLoading(false);
@@ -68,10 +181,40 @@ export default function ActivitiesPage() {
 
     // Grouping Logic
     const groupedActivities = useMemo(() => {
+        const filtered = activities.filter(activity => {
+            return columns.every(col => {
+                if (!col.filterValue) return true;
+                const val = col.filterValue.toLowerCase();
+
+                switch (col.id) {
+                    case 'type':
+                        return activity.type.toLowerCase().includes(val);
+                    case 'activity':
+                        return activity.title.toLowerCase().includes(val) || (activity.description || '').toLowerCase().includes(val);
+                    case 'dueDate':
+                        return activity.dueDate ? formatDate(activity.dueDate).toLowerCase().includes(val) : false;
+                    case 'relatedTo':
+                        const leadName = activity.lead ? `${activity.lead.firstName} ${activity.lead.lastName}` : '';
+                        const dealTitle = activity.deal ? activity.deal.title : '';
+                        return (leadName + dealTitle).toLowerCase().includes(val);
+                    case 'company':
+                        const co = activity.lead?.company || activity.contact?.company || activity.deal?.contact?.company || '';
+                        return co.toLowerCase().includes(val);
+                    case 'status':
+                        const status = activity.completed ? 'completed' : 'pending';
+                        return status.includes(val);
+                    case 'owner':
+                        return (activity as any).user?.name?.toLowerCase().includes(val);
+                    default:
+                        return true;
+                }
+            });
+        });
+
         const groups: Record<string, Activity[]> = {};
         const singles: Activity[] = [];
 
-        activities.forEach(a => {
+        filtered.forEach(a => {
             if (a.deal?.id) {
                 if (!groups[a.deal.id]) groups[a.deal.id] = [];
                 groups[a.deal.id].push(a);
@@ -82,12 +225,9 @@ export default function ActivitiesPage() {
 
         const finalDisplay: { id: string, main: Activity, sub: Activity[], isGroup: boolean }[] = [];
 
-        // Add Singles
         singles.forEach(a => finalDisplay.push({ id: a.id, main: a, sub: [], isGroup: false }));
 
-        // Process Groups
         Object.entries(groups).forEach(([dealId, groupList]) => {
-            // Sort: Latest created first (Descending)
             groupList.sort((a, b) => {
                 const dateA = new Date(a.createdAt || 0).getTime();
                 const dateB = new Date(b.createdAt || 0).getTime();
@@ -102,7 +242,6 @@ export default function ActivitiesPage() {
             });
         });
 
-        // Global Sort (by Main Activity Created Date Descending)
         finalDisplay.sort((a, b) => {
             const dateA = new Date(a.main.createdAt || 0).getTime();
             const dateB = new Date(b.main.createdAt || 0).getTime();
@@ -110,7 +249,7 @@ export default function ActivitiesPage() {
         });
 
         return finalDisplay;
-    }, [activities]);
+    }, [activities, columns]);
 
     const toggleGroup = (id: string) => {
         const newSet = new Set(expandedGroups);
@@ -191,112 +330,128 @@ export default function ActivitiesPage() {
         return (
             <div key={activity.id} className={`group border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors ${activity.completed ? 'bg-gray-50/50' : ''} ${isSubItem ? 'bg-gray-50/30' : ''}`}>
                 {/* Desktop Row */}
-                <div className="hidden md:grid grid-cols-[40px_50px_2fr_1fr_1.5fr_1.5fr_100px_80px] gap-4 px-4 py-3 items-center text-sm">
-                    <div className="flex justify-center">
+                <div
+                    className="hidden md:grid gap-0 items-center text-sm"
+                    style={{ gridTemplateColumns }}
+                >
+                    <div className="flex justify-center border-r border-gray-100/50 h-full items-center">
                         {isSubItem ? (
-                            <CornerDownRight size={14} className="text-gray-300 ml-auto" />
+                            <CornerDownRight size={14} className="text-gray-300 ml-auto mr-2" />
                         ) : (
                             <input type="checkbox" className="rounded border-gray-300 text-[#AF52DE] focus:ring-[#AF52DE]" />
                         )}
                     </div>
 
-                    {/* Type Icon */}
-                    <div className="flex justify-center">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105" style={{ backgroundColor: `${color}15` }}>
-                            <Icon size={16} style={{ color }} />
-                        </div>
-                    </div>
-
-                    {/* Activity Title & Actions */}
-                    <div className="flex items-center justify-between pr-4 min-w-0">
-                        <div className="truncate">
-                            <span className={`font-medium text-gray-900 block truncate ${activity.completed ? 'line-through text-gray-500' : ''}`}>{activity.title}</span>
-                            {activity.description && <span className="text-xs text-gray-500 truncate block">{activity.description}</span>}
-                        </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setSelectedActivity(activity); setShowEditModal(true); }}
-                                className="p-1 hover:bg-gray-200 rounded text-gray-500"
-                            >
-                                <Edit2 size={14} />
-                            </button>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); setSelectedActivity(activity); setShowDeleteModal(true); }}
-                                className="p-1 hover:bg-red-50 rounded text-red-500"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Due Date */}
-                    <div className={`${isOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
-                        {formatDate(activity.dueDate)}
-                    </div>
-
-                    {/* Related To */}
-                    <div className="truncate">
-                        {activity.lead && (
-                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs border border-blue-100 max-w-full truncate">
-                                <Users size={10} />
-                                <span className="truncate">{activity.lead.firstName} {activity.lead.lastName}</span>
-                            </div>
-                        )}
-                        {activity.deal && (
-                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs border border-green-100 max-w-full truncate">
-                                <FileText size={10} />
-                                <span className="truncate">{activity.deal.title}</span>
-                                {/* !isSubItem check removed because we want to see deal tag even in grouped view if it's the main item, or maybe context is clear */}
-                            </div>
-                        )}
-                        {!activity.lead && !activity.deal && !activity.contact && (
-                            <span className="text-gray-400 text-xs italic">-</span>
-                        )}
-                    </div>
-
-                    {/* Company */}
-                    <div className="truncate text-gray-600">
-                        {companyName ? (
-                            <div className="flex items-center gap-1.5">
-                                <div className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-gray-500 text-[10px] font-bold">
-                                    {companyName.substring(0, 1)}
-                                </div>
-                                <span className="truncate">{companyName}</span>
-                            </div>
-                        ) : (
-                            <span className="text-gray-400 text-xs italic">-</span>
-                        )}
-                    </div>
-
-                    {/* Status Toggle */}
-                    <div className="flex justify-center">
-                        <button
-                            onClick={(e) => { e.stopPropagation(); handleToggleComplete(activity); }}
-                            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${activity.completed
-                                ? 'bg-green-500 border-green-500 text-white'
-                                : 'border-gray-300 hover:border-[#AF52DE] text-transparent'
-                                }`}
-                        >
-                            <CheckCircle2 size={14} />
-                        </button>
-                    </div>
-
-                    {/* Owner */}
-                    <div className="flex justify-center">
-                        <div
-                            className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
-                            style={{
-                                backgroundColor: (activity as any).user?.name
-                                    ? `hsl(${(activity as any).user.name.charCodeAt(0) * 7 % 360}, 60%, 50%)`
-                                    : '#6B7280'
-                            }}
-                            title={(activity as any).user?.name || 'Unknown'}
-                        >
-                            {(activity as any).user?.name
-                                ? (activity as any).user.name.substring(0, 2).toUpperCase()
-                                : 'NA'}
-                        </div>
-                    </div>
+                    {columns.filter(c => c.visible).map(col => {
+                        switch (col.id) {
+                            case 'type':
+                                return (
+                                    <div key={col.id} className="px-4 py-3 flex justify-center border-r border-gray-100/50 h-full items-center">
+                                        <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105" style={{ backgroundColor: `${color}15` }}>
+                                            <Icon size={16} style={{ color }} />
+                                        </div>
+                                    </div>
+                                );
+                            case 'activity':
+                                return (
+                                    <div key={col.id} className="px-4 py-3 flex items-center justify-between border-r border-gray-100/50 h-full min-w-0">
+                                        <div className="truncate">
+                                            <span className={`font-medium text-gray-900 block truncate ${activity.completed ? 'line-through text-gray-500' : ''}`}>{activity.title}</span>
+                                            {activity.description && <span className="text-xs text-gray-500 truncate block">{activity.description}</span>}
+                                        </div>
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setSelectedActivity(activity); setShowEditModal(true); }}
+                                                className="p-1 hover:bg-gray-200 rounded text-gray-500"
+                                            >
+                                                <Edit2 size={14} />
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setSelectedActivity(activity); setShowDeleteModal(true); }}
+                                                className="p-1 hover:bg-red-50 rounded text-red-500"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            case 'dueDate':
+                                return (
+                                    <div key={col.id} className={`px-4 py-3 border-r border-gray-100/50 h-full flex items-center ${isOverdue ? 'text-red-600 font-medium' : 'text-gray-600'}`}>
+                                        {formatDate(activity.dueDate)}
+                                    </div>
+                                );
+                            case 'relatedTo':
+                                return (
+                                    <div key={col.id} className="px-4 py-3 border-r border-gray-100/50 h-full flex items-center truncate">
+                                        {activity.lead && (
+                                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs border border-blue-100 max-w-full truncate">
+                                                <Users size={10} />
+                                                <span className="truncate">{activity.lead.firstName} {activity.lead.lastName}</span>
+                                            </div>
+                                        )}
+                                        {activity.deal && (
+                                            <div className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs border border-green-100 max-w-full truncate">
+                                                <FileText size={10} />
+                                                <span className="truncate">{activity.deal.title}</span>
+                                            </div>
+                                        )}
+                                        {!activity.lead && !activity.deal && !activity.contact && (
+                                            <span className="text-gray-400 text-xs italic">-</span>
+                                        )}
+                                    </div>
+                                );
+                            case 'company':
+                                return (
+                                    <div key={col.id} className="px-4 py-3 border-r border-gray-100/50 h-full flex items-center truncate text-gray-600">
+                                        {companyName ? (
+                                            <div className="flex items-center gap-1.5 truncate">
+                                                <div className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center text-gray-500 text-[10px] font-bold flex-shrink-0">
+                                                    {companyName.substring(0, 1)}
+                                                </div>
+                                                <span className="truncate">{companyName}</span>
+                                            </div>
+                                        ) : (
+                                            <span className="text-gray-400 text-xs italic">-</span>
+                                        )}
+                                    </div>
+                                );
+                            case 'status':
+                                return (
+                                    <div key={col.id} className="px-4 py-3 border-r border-gray-100/50 h-full flex items-center justify-center">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleToggleComplete(activity); }}
+                                            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${activity.completed
+                                                ? 'bg-green-500 border-green-500 text-white'
+                                                : 'border-gray-300 hover:border-[#AF52DE] text-transparent'
+                                                }`}
+                                        >
+                                            <CheckCircle2 size={14} />
+                                        </button>
+                                    </div>
+                                );
+                            case 'owner':
+                                return (
+                                    <div key={col.id} className="px-4 py-3 h-full flex items-center justify-center">
+                                        <div
+                                            className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                                            style={{
+                                                backgroundColor: (activity as any).user?.name
+                                                    ? `hsl(${(activity as any).user.name.charCodeAt(0) * 7 % 360}, 60%, 50%)`
+                                                    : '#6B7280'
+                                            }}
+                                            title={(activity as any).user?.name || 'Unknown'}
+                                        >
+                                            {(activity as any).user?.name
+                                                ? (activity as any).user.name.substring(0, 2).toUpperCase()
+                                                : 'NA'}
+                                        </div>
+                                    </div>
+                                );
+                            default:
+                                return null;
+                        }
+                    })}
                 </div>
 
                 {/* Mobile Card View */}
@@ -405,85 +560,104 @@ export default function ActivitiesPage() {
             </motion.div>
 
             {/* Activities List */}
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex-1 flex flex-col">
-                {/* Desktop Table Header */}
-                <div className="hidden md:grid grid-cols-[40px_50px_2fr_1fr_1.5fr_1.5fr_100px_80px] gap-4 px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider items-center">
-                    <div className="flex justify-center">
-                        <input type="checkbox" className="rounded border-gray-300 text-[#AF52DE] focus:ring-[#AF52DE]" />
-                    </div>
-                    <div className="text-center">Type</div>
-                    <div>Activity</div>
-                    <div>Due Date</div>
-                    <div>Related To</div>
-                    <div>Company</div>
-                    <div className="text-center">Status</div>
-                    <div className="text-center">Owner</div>
-                </div>
-
-                {/* Table Body */}
-                <div className="overflow-y-auto flex-1">
-                    {groupedActivities.map((group) => (
-                        <div key={group.id} className="border-b border-gray-100 last:border-0 relative">
-                            {/* If Group, wrap in container with relative positioning for connection lines */}
-                            {group.isGroup && group.sub.length > 0 ? (
-                                <>
-                                    <div className="relative">
-                                        {/* Main Activity Row */}
-                                        {renderActivityRow(group.main)}
-
-                                        {/* Group Indicator / Toggle Button */}
-                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500/0 hover:bg-green-500/20 transition-colors cursor-pointer" onClick={() => toggleGroup(group.id)}></div>
-
-                                        {/* Expand Button Overlay or separate column? */}
-                                        {/* Let's put a small indicator near the title or checkbox column */}
-                                        <div
-                                            className="absolute left-1 top-3.5 bg-white border border-gray-200 rounded-md shadow-sm p-0.5 cursor-pointer hover:bg-gray-50 z-10"
-                                            onClick={(e) => { e.stopPropagation(); toggleGroup(group.id); }}
-                                            title={`${group.sub.length} more activities in this deal`}
-                                        >
-                                            <div className="flex items-center gap-1 px-1">
-                                                <Layers size={10} className="text-green-600" />
-                                                <span className="text-[10px] font-bold text-gray-600">+{group.sub.length}</span>
-                                                {expandedGroups.has(group.id) ? (
-                                                    <ChevronDown size={10} className="text-gray-400" />
-                                                ) : (
-                                                    <ChevronRight size={10} className="text-gray-400" />
-                                                )}
-                                            </div>
-                                        </div>
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm flex-1 flex flex-col relative overflow-hidden">
+                <div className="overflow-x-auto flex-1 flex flex-col min-w-full">
+                    <div className="min-w-[1100px] flex flex-col flex-1">
+                        {/* Desktop Table Header */}
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCorners}
+                            onDragEnd={handleColumnMove}
+                        >
+                            <SortableContext items={columns.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                                <div
+                                    className="hidden md:grid gap-0 border-b border-gray-200 bg-gray-50 items-center sticky top-0 z-20"
+                                    style={{ gridTemplateColumns }}
+                                >
+                                    <div className="flex justify-center px-4 py-3 h-full items-center border-r border-gray-200 bg-gray-50">
+                                        <input type="checkbox" className="rounded border-gray-300 text-[#AF52DE] focus:ring-[#AF52DE]" />
                                     </div>
+                                    {columns.filter(c => c.visible).map((col, idx) => (
+                                        <ColumnHeader
+                                            key={col.id}
+                                            column={col}
+                                            onResize={handleResize}
+                                            onFilterChange={handleFilterChange}
+                                            index={idx}
+                                        />
+                                    ))}
+                                </div>
+                            </SortableContext>
+                        </DndContext>
 
-                                    {/* Sub Activities */}
-                                    <AnimatePresence>
-                                        {expandedGroups.has(group.id) && (
-                                            <motion.div
-                                                initial={{ height: 0, opacity: 0 }}
-                                                animate={{ height: 'auto', opacity: 1 }}
-                                                exit={{ height: 0, opacity: 0 }}
-                                                className="overflow-hidden bg-gray-50/20"
-                                            >
-                                                {group.sub.map(subActivity => renderActivityRow(subActivity, true))}
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </>
-                            ) : (
-                                renderActivityRow(group.main)
+                        {/* List Body */}
+                        <div className="overflow-y-auto flex-1 bg-white">
+                            {groupedActivities.length > 0 ? groupedActivities.map((group) => (
+                                <div key={group.id} className="border-b border-gray-100 last:border-0 relative">
+                                    {group.isGroup && group.sub.length > 0 ? (
+                                        <>
+                                            <div className="relative">
+                                                {renderActivityRow(group.main)}
+                                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500/0 hover:bg-green-500/20 transition-colors cursor-pointer" onClick={() => toggleGroup(group.id)}></div>
+                                                <div
+                                                    className="absolute left-1 top-3.5 bg-white border border-gray-200 rounded-md shadow-sm p-0.5 cursor-pointer hover:bg-gray-50 z-10"
+                                                    onClick={(e) => { e.stopPropagation(); toggleGroup(group.id); }}
+                                                    title={`${group.sub.length} more activities in this deal`}
+                                                >
+                                                    <div className="flex items-center gap-1 px-1">
+                                                        <Layers size={10} className="text-green-600" />
+                                                        <span className="text-[10px] font-bold text-gray-600">+{group.sub.length}</span>
+                                                        {expandedGroups.has(group.id) ? (
+                                                            <ChevronDown size={10} className="text-gray-400" />
+                                                        ) : (
+                                                            <ChevronRight size={10} className="text-gray-400" />
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <AnimatePresence>
+                                                {expandedGroups.has(group.id) && (
+                                                    <motion.div
+                                                        initial={{ height: 0, opacity: 0 }}
+                                                        animate={{ height: 'auto', opacity: 1 }}
+                                                        exit={{ height: 0, opacity: 0 }}
+                                                        className="overflow-hidden bg-gray-50/20"
+                                                    >
+                                                        {group.sub.map(subActivity => renderActivityRow(subActivity, true))}
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
+                                        </>
+                                    ) : (
+                                        renderActivityRow(group.main)
+                                    )}
+                                </div>
+                            )) : (
+                                <div className="text-center py-16 text-gray-400">
+                                    <Search size={48} className="mx-auto mb-4 opacity-50" />
+                                    <p className="text-lg font-medium text-gray-500">No activities found matching your criteria</p>
+                                    <button
+                                        onClick={() => setColumns(prev => prev.map(c => ({ ...c, filterValue: '' })))}
+                                        className="mt-4 text-[#AF52DE] text-sm font-black hover:underline"
+                                    >
+                                        Clear all filters
+                                    </button>
+                                </div>
                             )}
-                        </div>
-                    ))}
 
-                    {/* Add Activity Row */}
-                    <button
-                        onClick={() => setShowAddModal(true)}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-500 hover:bg-gray-50 hover:text-[#AF52DE] transition-colors border-b border-gray-100 text-left"
-                    >
-                        <div className="w-10 flex justify-center">
-                            <div className="w-4 h-4 rounded border border-gray-300 bg-white" />
+                            {/* Add Activity Row */}
+                            <button
+                                onClick={() => setShowAddModal(true)}
+                                className="w-full flex items-center gap-3 px-4 py-4 text-sm text-gray-500 hover:bg-gray-50 hover:text-[#AF52DE] transition-colors border-b border-gray-100 text-left"
+                            >
+                                <div className="w-10 flex justify-center">
+                                    <Plus size={18} strokeWidth={3} />
+                                </div>
+                                <span className="font-black uppercase tracking-widest text-[11px]">Add activity</span>
+                            </button>
                         </div>
-                        <Plus size={16} />
-                        <span className="font-medium">Add activity</span>
-                    </button>
+                    </div>
                 </div>
             </div>
 

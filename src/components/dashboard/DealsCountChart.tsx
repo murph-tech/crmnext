@@ -8,9 +8,11 @@ import { Loader2 } from 'lucide-react';
 
 interface DealsCountChartProps {
     timeframe: string;
+    startDate?: string;
+    endDate?: string;
 }
 
-export default function DealsCountChart({ timeframe }: DealsCountChartProps) {
+export default function DealsCountChart({ timeframe, startDate, endDate }: DealsCountChartProps) {
     const { token } = useAuth();
     const [data, setData] = useState<{ name: string; new: number; won: number }[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -20,17 +22,21 @@ export default function DealsCountChart({ timeframe }: DealsCountChartProps) {
             if (!token) return;
             try {
                 setIsLoading(true);
-                const result = await api.getDealsCount(token, timeframe);
+                const result = await api.getDealsCount(token, { timeframe, startDate, endDate });
                 setData(result);
             } catch (error) {
-                console.error('Failed to load chart data:', error);
+                // In development mode, mock data is returned automatically
+                // In production, this error would indicate backend issues
+                if (process.env.NODE_ENV !== 'development') {
+                    console.error('Failed to load chart data:', error);
+                }
             } finally {
                 setIsLoading(false);
             }
         };
 
         loadData();
-    }, [token, timeframe]);
+    }, [token, timeframe, startDate, endDate]);
 
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {

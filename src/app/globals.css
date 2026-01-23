@@ -58,7 +58,9 @@
   --color-apple-gray-700: var(--apple-gray-700);
   --color-apple-gray-800: var(--apple-gray-800);
   --color-apple-gray-900: var(--apple-gray-900);
-  --font-sans: var(--font-kanit), -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  --font-sans: var(--font-google-sans), var(--font-kanit), -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  --font-weight-bold: 400;
+  --font-weight-black: 600;
 }
 
 /* ===== Base Styles ===== */
@@ -68,6 +70,7 @@
 
 html {
   font-family: var(--font-sans);
+  font-weight: 200;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

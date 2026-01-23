@@ -9,6 +9,7 @@ async function main() {
             id: true,
             firstName: true,
             lastName: true,
+            company: true,
             ownerId: true,
         },
     });

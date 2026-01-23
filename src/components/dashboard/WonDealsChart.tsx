@@ -9,9 +9,11 @@ import { formatCurrency } from '@/lib/utils';
 
 interface WonDealsChartProps {
     timeframe: string;
+    startDate?: string;
+    endDate?: string;
 }
 
-export default function WonDealsChart({ timeframe }: WonDealsChartProps) {
+export default function WonDealsChart({ timeframe, startDate, endDate }: WonDealsChartProps) {
     const { token } = useAuth();
     const [data, setData] = useState<{ name: string; won: number; lost: number }[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -21,17 +23,21 @@ export default function WonDealsChart({ timeframe }: WonDealsChartProps) {
             if (!token) return;
             try {
                 setIsLoading(true);
-                const result = await api.getWonDeals(token, timeframe);
+                const result = await api.getWonDeals(token, { timeframe, startDate, endDate });
                 setData(result);
             } catch (error) {
-                console.error('Failed to load chart data:', error);
+                // In development mode, mock data is returned automatically
+                // In production, this error would indicate backend issues
+                if (process.env.NODE_ENV !== 'development') {
+                    console.error('Failed to load chart data:', error);
+                }
             } finally {
                 setIsLoading(false);
             }
         };
 
         loadData();
-    }, [token, timeframe]);
+    }, [token, timeframe, startDate, endDate]);
 
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {

@@ -8,6 +8,7 @@ import { calculateDocumentTotals } from '../utils/calculation';
  */
 const syncDocuments = async (dealId: string) => {
     try {
+        console.log(`[syncDocuments] Starting sync for deal ${dealId}`);
         // 1. Get Deal with Items
         const deal = await prisma.deal.findUnique({
             where: { id: dealId },
@@ -111,7 +112,13 @@ router.get('/', async (req: AuthRequest, res, next) => {
             where: {
                 ...getDealAccessFilter(req.user),
                 ...(ownerId && req.user?.role === 'ADMIN' ? { ownerId: ownerId as string } : {}),
-                ...(stage && { stage: stage as any }),
+                ...(stage && {
+                    stage: typeof stage === 'string' && stage.includes(',')
+                        ? { in: stage.split(',') as any }
+                        : Array.isArray(stage)
+                            ? { in: stage as any }
+                            : stage as any
+                }),
             },
             orderBy: { createdAt: 'desc' },
             include: {
@@ -138,7 +145,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
 router.get('/pipeline', async (req: AuthRequest, res, next) => {
     try {
         const { search } = req.query;
-        const stages = ['QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON', 'CLOSED_LOST'];
+        const stages = ['QUALIFIED', 'DISCOVERY', 'PROPOSAL', 'NEGOTIATION', 'CLOSED_WON', 'CLOSED_LOST'];
 
         const pipeline = await Promise.all(
             stages.map(async (stage) => {
@@ -167,8 +174,8 @@ router.get('/pipeline', async (req: AuthRequest, res, next) => {
                             select: { id: true, name: true, email: true, avatar: true },
                         },
                         activities: {
-                            orderBy: { dueDate: 'asc' },
-                            take: 10
+                            orderBy: { createdAt: 'desc' },
+                            take: 20
                         },
                     },
                 });
@@ -272,8 +279,9 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
         const isOwner = deal.ownerId === user?.id;
         const isSalesTeam = deal.salesTeam.some(m => m.id === user?.id);
         const isAdmin = user?.role === 'ADMIN';
+        const isManager = user?.role === 'MANAGER';
 
-        if (!isOwner && !isSalesTeam && !isAdmin) {
+        if (!isOwner && !isSalesTeam && !isAdmin && !isManager) {
             return res.status(403).json({ error: 'Not authorized to view this deal' });
         }
 
@@ -289,9 +297,9 @@ router.post('/:id/items', async (req: AuthRequest, res, next) => {
         const { productId, quantity, price, discount } = req.body;
         const dealId = req.params.id as string;
 
-        // Verify deal ownership
+        // Verify deal access (Owner, Sales Team, Manager, Admin)
         const deal = await prisma.deal.findFirst({
-            where: { id: dealId, ...getOwnerFilter(req.user) },
+            where: { id: dealId, ...getDealAccessFilter(req.user) },
         });
 
         if (!deal) return res.status(404).json({ error: 'Deal not found' });
@@ -335,9 +343,9 @@ router.delete('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
         const dealId = req.params.id as string;
         const itemId = req.params.itemId as string;
 
-        // Verify deal ownership
+        // Verify deal access (Owner, Sales Team, Manager, Admin)
         const deal = await prisma.deal.findFirst({
-            where: { id: dealId, ...getOwnerFilter(req.user) },
+            where: { id: dealId, ...getDealAccessFilter(req.user) },
         });
 
         if (!deal) return res.status(404).json({ error: 'Deal not found' });
@@ -371,9 +379,9 @@ router.put('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
         const itemId = req.params.itemId as string;
         const { price, quantity, discount, name, description } = req.body;
 
-        // Verify deal ownership
+        // Verify deal access (Owner, Sales Team, Manager, Admin)
         const deal = await prisma.deal.findFirst({
-            where: { id: dealId, ...getOwnerFilter(req.user) },
+            where: { id: dealId, ...getDealAccessFilter(req.user) },
         });
 
         if (!deal) return res.status(404).json({ error: 'Deal not found' });
@@ -415,7 +423,7 @@ router.put('/:id/items/:itemId', async (req: AuthRequest, res, next) => {
 // Create deal
 router.post('/', async (req: AuthRequest, res, next) => {
     try {
-        const { title, value, currency, stage, probability, contactId, notes } = req.body;
+        const { title, value, currency, stage, probability, contactId, notes, startDate, expectedCloseDate } = req.body;
 
         const deal = await prisma.deal.create({
             data: {
@@ -425,10 +433,36 @@ router.post('/', async (req: AuthRequest, res, next) => {
                 stage: stage || 'QUALIFIED',
                 probability: probability || 20,
                 notes,
+                ...(startDate && { createdAt: new Date(startDate) }),
+                ...(expectedCloseDate && { expectedCloseDate: new Date(expectedCloseDate) }),
                 owner: { connect: { id: req.user!.id } },
                 ...(contactId && { contact: { connect: { id: contactId } } }),
             },
+            include: {
+                contact: { select: { firstName: true, lastName: true } }
+            }
         });
+
+        // AUTO-SYNC: Create Calendar Event for this Deal
+        // ONLY if startDate is provided (User explicit selection)
+        if (startDate) {
+            const eventDate = new Date(startDate);
+            const eventTitle = `Deal Start: ${deal.title}`;
+            const eventDesc = `Deal Value: ${deal.currency} ${deal.value}\nStart Date: ${new Date(deal.createdAt).toLocaleDateString()}\nContact: ${deal.contact?.firstName || 'N/A'} ${deal.contact?.lastName || ''}`;
+
+            await prisma.calendarEvent.create({
+                data: {
+                    userId: req.user!.id,
+                    title: eventTitle,
+                    description: eventDesc,
+                    startTime: eventDate,
+                    endTime: new Date(eventDate.getTime() + 60 * 60 * 1000), // Default 1 hour
+                    isAllDay: true, // Start dates usually signify the day it started
+                    dealId: deal.id,
+                    contactId: contactId || undefined,
+                }
+            });
+        }
 
         res.status(201).json(deal);
     } catch (error) {
@@ -453,7 +487,7 @@ router.put('/:id', async (req: AuthRequest, res, next) => {
             return res.status(404).json({ error: 'Deal not found' });
         }
 
-        const { salesTeamIds, ...otherData } = req.body;
+        const { salesTeamIds, startDate, ...otherData } = req.body;
 
         // If updating salesTeam, verify USER is the Owner (Manager) or ADMIN
         // The requester MUST be the owner or admin to add others.
@@ -469,6 +503,8 @@ router.put('/:id', async (req: AuthRequest, res, next) => {
             where: { id: dealId },
             data: {
                 ...otherData,
+                ...(startDate && { createdAt: new Date(startDate) }),
+                ...(req.body.closedAt && { closedAt: new Date(req.body.closedAt) }), // Allow manual Closed Date
                 ...(salesTeamIds && {
                     salesTeam: {
                         set: salesTeamIds.map((id: string) => ({ id })),
@@ -485,7 +521,29 @@ router.put('/:id', async (req: AuthRequest, res, next) => {
         });
 
         // Sync Invoice/Receipt
-        await syncDocuments(dealId);
+        try {
+            await syncDocuments(dealId);
+        } catch (syncError) {
+            console.error(`[syncDocuments] Failed to sync documents for deal ${dealId}:`, syncError);
+            // Don't fail the main operation, just log the error
+        }
+
+        // AUTO-SYNC: Update Calendar Event if startDate changed
+        if (startDate) {
+            try {
+                const eventDate = new Date(startDate);
+                await prisma.calendarEvent.updateMany({
+                    where: { dealId: dealId },
+                    data: {
+                        startTime: eventDate,
+                        endTime: new Date(eventDate.getTime() + 60 * 60 * 1000), // Keep 1 hour duration
+                        isAllDay: true, // Assuming deals are still all-day events by default
+                    }
+                });
+            } catch (calError) {
+                console.error(`[AutoSync] Failed to update calendar event for deal ${dealId}:`, calError);
+            }
+        }
 
         res.json(deal);
     } catch (error) {
@@ -501,7 +559,7 @@ router.patch('/:id/stage', async (req: AuthRequest, res, next) => {
         const deal = await prisma.deal.updateMany({
             where: {
                 id: req.params.id as string,
-                ...getOwnerFilter(req.user),
+                ...getDealAccessFilter(req.user),
             },
             data: {
                 stage,
@@ -534,6 +592,11 @@ router.delete('/:id', async (req: AuthRequest, res, next) => {
         if (!deal) {
             return res.status(404).json({ error: 'Deal not found' });
         }
+
+        // Explicitly delete associated calendar events first
+        await prisma.calendarEvent.deleteMany({
+            where: { dealId: deal.id },
+        });
 
         await prisma.deal.delete({
             where: { id: deal.id },
@@ -608,7 +671,17 @@ router.post('/:id/quotation', async (req: AuthRequest, res, next) => {
     try {
         const dealId = req.params.id as string;
 
-        // 1. Fetch Deal and Company Settings in parallel
+        // 1. Check access permissions first
+        const dealAccessCheck = await prisma.deal.findFirst({
+            where: { id: dealId, ...getDealAccessFilter(req.user) },
+            select: { id: true }
+        });
+
+        if (!dealAccessCheck) {
+            return res.status(403).json({ error: 'Access denied to this deal' });
+        }
+
+        // 2. Fetch Deal and Company Settings in parallel
         const [deal, settings] = await Promise.all([
             prisma.deal.findUnique({ where: { id: dealId } }),
             prisma.systemSetting.findMany({
@@ -732,8 +805,9 @@ router.post('/:id/approve', async (req: AuthRequest, res, next) => {
         });
 
         res.json(updatedDeal);
-    } catch (error) {
-        next(error);
+    } catch (error: any) {
+        console.error('Approve Deal Error:', error);
+        res.status(500).json({ error: error.message || 'Failed to approve deal' });
     }
 });
 

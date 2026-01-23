@@ -152,16 +152,8 @@ router.post('/:id/convert', async (req: AuthRequest, res, next) => {
             return res.status(404).json({ error: 'Lead not found' });
         }
 
-        // Check if contact with same email already exists
-        const existingContact = await prisma.contact.findFirst({
-            where: { email: lead.email },
-        });
-
-        if (existingContact) {
-            return res.status(400).json({ error: 'Contact with this email already exists' });
-        }
-
-        // Create contact from lead
+        // Create contact from lead (Always create new, even if email exists)
+        // Grouping to 'Company' happens automatically via the 'company' field string match.
         const contact = await prisma.contact.create({
             data: {
                 firstName: lead.firstName,

@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import { api } from '@/lib/api';
-import { formatMoney, formatDateTh, formatDateForInput, formatDateTimeTh, getCompanyInfo } from '@/lib/document-utils';
+import { formatMoney, formatDateTh, formatDateForInput, formatDateTimeTh, getCompanyInfo, getTranslation } from '@/lib/document-utils';
 import { bahttext } from '@/lib/bahttext';
 import { Loader2, Printer, ArrowLeft, Globe, Edit3, Save, X, CheckCircle } from 'lucide-react';
 import { DocumentsNav } from '@/components/documents/DocumentsNav';
@@ -20,7 +20,7 @@ type Language = 'th' | 'en';
 export default function ReceiptPage() {
     const { id } = useParams();
     const router = useRouter();
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const { settings } = useSettings();
     const { addToast } = useToast();
     const [receipt, setReceipt] = useState<any>(null);
@@ -239,47 +239,57 @@ export default function ReceiptPage() {
                         {/* HEADER */}
                         <DocumentHeader
                             companyInfo={companyInfo}
-                            titleEn="Receipt"
-                            titleTh="ใบเสร็จรับเงิน"
+                            documentType="receipt"
                             docNumber={receipt.receiptNumber}
                             themeColor={themeColor}
                             showOriginal={true}
                         />
 
                         {/* INFO GRID */}
-                        <div className="border mb-3" style={{ borderColor: themeColor }}>
-                            <div className="grid grid-cols-2">
-                                <div className="p-2 border-r text-[8pt]" style={{ borderColor: themeColor }}>
+                        <div className="border mb-4" style={{ borderColor: themeColor }}>
+                            <div className="grid grid-cols-2 gap-0">
+                                {/* Left Column - Customer Info */}
+                                <div className="p-3 border-r text-[8pt]" style={{ borderColor: themeColor }}>
                                     <table className="w-full">
                                         <tbody>
-                                            <tr><td className="font-bold py-0.5 w-[85px] align-top">ชื่อลูกค้า<br /><span className="font-normal text-gray-500 text-[7pt]">Customer Name</span></td><td className="py-0.5 font-medium">{customerName}</td></tr>
-                                            <tr><td className="font-bold py-0.5 align-top">เลขที่ผู้เสียภาษี<br /><span className="font-normal text-gray-500 text-[7pt]">Tax ID</span></td><td className="py-0.5">{customerTaxId} (สำนักงานใหญ่)</td></tr>
-                                            <tr><td className="font-bold py-0.5 align-top">ที่อยู่<br /><span className="font-normal text-gray-500 text-[7pt]">Address</span></td><td className="py-0.5 leading-tight">{customerAddress}<br /><span className="text-gray-600">โทร: {customerPhone}</span></td></tr>
+                                            <tr>
+                                                <td className="font-bold py-2 w-[85px] align-top text-left pl-1 whitespace-nowrap">ชื่อลูกค้า<br /><span className="font-normal text-gray-500 text-[7pt]">Customer Name</span></td>
+                                                <td className="py-2 pl-2 font-medium break-words">{customerName}</td>
+                                            </tr>
+                                            <tr>
+                                                <td className="font-bold py-2 align-top text-left pl-1 whitespace-nowrap">เลขที่ผู้เสียภาษี<br /><span className="font-normal text-gray-500 text-[7pt]">Tax ID</span></td>
+                                                <td className="py-2 pl-2">{customerTaxId} (สำนักงานใหญ่)</td>
+                                            </tr>
+                                            <tr>
+                                                <td className="font-bold py-2 align-top text-left pl-1 whitespace-nowrap">ที่อยู่<br /><span className="font-normal text-gray-500 text-[7pt]">Address</span></td>
+                                                <td className="py-2 pl-2 leading-tight break-words">
+                                                    <div className="mb-1">{customerAddress}</div>
+                                                    <div className="text-gray-600 text-[7pt]">โทร: {customerPhone}</div>
+                                                </td>
+                                            </tr>
                                         </tbody>
                                     </table>
                                 </div>
-                                <div className="p-2 text-[7.5pt]">
+
+                                {/* Right Column - Document Info */}
+                                <div className="p-3 text-[8pt]">
                                     <table className="w-full">
                                         <tbody>
                                             <tr>
-                                                <td className="font-bold py-0.5 w-[65px] align-top whitespace-nowrap">วันที่<br /><span className="font-normal text-gray-500 text-[6pt]">Issue Date</span></td>
-                                                <td className="py-0.5 w-[75px]">: {formatDateTh(receipt.date)}</td>
-                                                <td className="font-bold py-0.5 w-[60px] align-top whitespace-nowrap">พนักงานขาย<br /><span className="font-normal text-gray-500 text-[6pt]">Salesman</span></td>
-                                                <td className="py-0.5 truncate max-w-[70px]">: {receipt.invoice?.deal?.owner?.name || '-'}</td>
+                                                <td className="font-bold py-2 w-[80px] align-top text-left pl-1 whitespace-nowrap">วันที่<br /><span className="font-normal text-gray-500 text-[7pt]">Issue Date</span></td>
+                                                <td className="py-2 pl-1 w-[85px]">: {formatDateTh(receipt.date)}</td>
+                                                <td className="font-bold py-2 w-[80px] align-top text-left pl-1 whitespace-nowrap">พนักงานขาย<br /><span className="font-normal text-gray-500 text-[7pt]">Salesman</span></td>
+                                                <td className="py-2 pl-3 truncate">: {receipt.invoice?.deal?.owner?.name || '-'}</td>
                                             </tr>
                                             <tr>
-                                                <td className="font-bold py-0.5 align-top whitespace-nowrap">วันที่ชำระ<br /><span className="font-normal text-gray-500 text-[6pt]">Payment Date</span></td>
-                                                <td className="py-0.5">: {formatDateTh(receipt.paymentDate)}</td>
-                                                <td className="font-bold py-0.5 align-top whitespace-nowrap">เบอร์ติดต่อ<br /><span className="font-normal text-gray-500 text-[6pt]">Contact No.</span></td>
-                                                <td className="py-0.5 text-[7pt]">: {companyPhone}</td>
+                                                <td className="font-bold py-2 w-[80px] align-top text-left pl-1 whitespace-nowrap">วันที่ชำระ<br /><span className="font-normal text-gray-500 text-[7pt]">Payment Date</span></td>
+                                                <td className="py-2 pl-1 w-[75px]">: {formatDateTh(receipt.paymentDate)}</td>
+                                                <td className="font-bold py-2 w-[75px] align-top text-left pl-1 whitespace-nowrap">เบอร์ติดต่อ<br /><span className="font-normal text-gray-500 text-[7pt]">Contact No.</span></td>
+                                                <td className="py-2 pl-1 w-[80px]">: {companyPhone}</td>
                                             </tr>
                                             <tr>
-                                                <td className="font-bold py-0.5 align-top whitespace-nowrap">อ้างอิง<br /><span className="font-normal text-gray-500 text-[6pt]">Ref Invoice</span></td>
-                                                <td colSpan={3} className="py-0.5 font-bold" style={{ color: themeColor }}>: {invoiceNumber}</td>
-                                            </tr>
-                                            <tr>
-                                                <td className="font-bold py-0.5 align-top whitespace-nowrap">อีเมล<br /><span className="font-normal text-gray-500 text-[6pt]">E-mail</span></td>
-                                                <td colSpan={3} className="py-0.5 text-[6.5pt] truncate">: {customerEmail}</td>
+                                                <td className="font-bold py-2 w-[80px] align-top text-left pl-1 whitespace-nowrap">อ้างอิง<br /><span className="font-normal text-gray-500 text-[7pt]">Ref Invoice</span></td>
+                                                <td colSpan={3} className="py-2 pl-1 font-bold break-words" style={{ color: themeColor }}>: {invoiceNumber}</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -292,12 +302,30 @@ export default function ReceiptPage() {
                             <table className="w-full border-collapse text-[8pt]">
                                 <thead>
                                     <tr style={{ backgroundColor: themeColor }} className="text-white">
-                                        <th className="py-2 px-2 w-[40px] text-center font-bold border-r border-white/30">เลขที่<br /><span className="font-normal text-[7pt]">No.</span></th>
-                                        <th className="py-2 px-2 text-left font-bold border-r border-white/30">รายการ<br /><span className="font-normal text-[7pt]">Description</span></th>
-                                        <th className="py-2 px-2 w-[55px] text-center font-bold border-r border-white/30">จำนวน<br /><span className="font-normal text-[7pt]">Quantity</span></th>
-                                        <th className="py-2 px-2 w-[75px] text-right font-bold border-r border-white/30">ราคา/หน่วย<br /><span className="font-normal text-[7pt]">Unit Price</span></th>
-                                        <th className="py-2 px-2 w-[65px] text-right font-bold border-r border-white/30">ส่วนลด<br /><span className="font-normal text-[7pt]">Discount</span></th>
-                                        <th className="py-2 px-2 w-[85px] text-right font-bold">จำนวนเงิน (THB)<br /><span className="font-normal text-[7pt]">Amount</span></th>
+                                        <th className="py-2 px-2 w-[40px] text-center font-bold border-r border-white/30">
+                                            {language === 'th' ? getTranslation('no', 'th') : getTranslation('no', 'en')}<br />
+                                            <span className="font-normal text-[7pt]">{language === 'th' ? getTranslation('no', 'en') : getTranslation('no', 'th')}</span>
+                                        </th>
+                                        <th className="py-2 px-2 text-left font-bold border-r border-white/30">
+                                            {language === 'th' ? getTranslation('description', 'th') : getTranslation('description', 'en')}<br />
+                                            <span className="font-normal text-[7pt]">{language === 'th' ? getTranslation('description', 'en') : getTranslation('description', 'th')}</span>
+                                        </th>
+                                        <th className="py-2 px-2 w-[55px] text-center font-bold border-r border-white/30">
+                                            {language === 'th' ? getTranslation('quantity', 'th') : getTranslation('quantity', 'en')}<br />
+                                            <span className="font-normal text-[7pt]">{language === 'th' ? getTranslation('quantity', 'en') : getTranslation('quantity', 'th')}</span>
+                                        </th>
+                                        <th className="py-2 px-2 w-[75px] text-right font-bold border-r border-white/30">
+                                            {language === 'th' ? getTranslation('unitPrice', 'th') : getTranslation('unitPrice', 'en')}<br />
+                                            <span className="font-normal text-[7pt]">{language === 'th' ? getTranslation('unitPrice', 'en') : getTranslation('unitPrice', 'th')}</span>
+                                        </th>
+                                        <th className="py-2 px-2 w-[65px] text-right font-bold border-r border-white/30">
+                                            {language === 'th' ? getTranslation('discount', 'th') : getTranslation('discount', 'en')}<br />
+                                            <span className="font-normal text-[7pt]">{language === 'th' ? getTranslation('discount', 'en') : getTranslation('discount', 'th')}</span>
+                                        </th>
+                                        <th className="py-2 px-2 w-[85px] text-right font-bold">
+                                            {language === 'th' ? getTranslation('amount', 'th') : getTranslation('amount', 'en')}<br />
+                                            <span className="font-normal text-[7pt]">{language === 'th' ? getTranslation('amount', 'en') : getTranslation('amount', 'th')}</span>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -334,6 +362,7 @@ export default function ReceiptPage() {
 
                         {/* BOTTOM SECTION */}
                         <div className="flex gap-3 mb-2">
+                            {/* Left Side */}
                             <div className="flex-1 text-[8pt]">
                                 <div className="flex border border-gray-300 mb-2">
                                     <div className="bg-gray-200 px-2 py-1 font-bold w-[70px]">จำนวนเงิน<br /><span className="font-normal text-gray-600 text-[7pt]">Amount</span></div>
@@ -355,15 +384,15 @@ export default function ReceiptPage() {
                                 )}
                             </div>
                             <div className="w-[220px]">
-                                <table className="w-full text-[7.5pt] border-collapse">
+                                <table className="w-full text-[8pt] border-collapse">
                                     <tbody>
                                         <tr>
-                                            <td className="bg-gray-100 p-1.5 font-bold border border-gray-300 whitespace-nowrap">รวมเป็นเงิน<br /><span className="font-normal text-gray-500 text-[6pt]">Total</span></td>
-                                            <td className="p-1.5 text-right border border-gray-300 font-medium w-[85px]">{formatMoney(calcSubtotal)}</td>
+                                            <td className="bg-gray-100 p-2 font-bold border border-gray-300 whitespace-nowrap">รวมเป็นเงิน<br /><span className="font-normal text-gray-500 text-[7pt]">Total</span></td>
+                                            <td className="p-2 text-right border border-gray-300 font-medium w-[85px]">{formatMoney(calcSubtotal)}</td>
                                         </tr>
                                         <tr>
-                                            <td className="bg-gray-100 p-1.5 font-bold border border-gray-300 whitespace-nowrap">หักส่วนลด<br /><span className="font-normal text-gray-500 text-[6pt]">Discount</span></td>
-                                            <td className="p-1.5 text-right border border-gray-300 text-red-600">{formatMoney(calcDiscount)}</td>
+                                            <td className="bg-gray-100 p-2 font-bold border border-gray-300 whitespace-nowrap">หักส่วนลด<br /><span className="font-normal text-gray-500 text-[7pt]">Discount</span></td>
+                                            <td className="p-2 text-right border border-gray-300 text-red-600">{formatMoney(calcDiscount)}</td>
                                         </tr>
                                         <tr>
                                             <td className="bg-gray-100 p-1.5 font-bold border border-gray-300 whitespace-nowrap">ยอดหลังหักส่วนลด<br /><span className="font-normal text-gray-500 text-[6pt]">After Discount</span></td>
@@ -419,26 +448,44 @@ export default function ReceiptPage() {
                             </>
                         ) : (
                             <>
-                                <div className="flex justify-center mb-2">
-                                    {receipt.status === 'DRAFT' && <div className="h-10 w-full flex items-center justify-center gap-2 bg-yellow-50 text-yellow-800 px-4 py-2 rounded-lg border border-yellow-200 shadow-sm font-medium">ฉบับร่าง (Draft)</div>}
-                                    {receipt.status === 'ISSUED' && <div className="h-10 w-full flex items-center justify-center gap-2 bg-green-50 text-green-800 px-4 py-2 rounded-lg border border-green-200 shadow-sm font-medium">ออกแล้ว (Issued)</div>}
-                                </div>
+                                {(() => {
+                                    const isOwner = user?.id === receipt.invoice?.deal?.owner?.id;
+                                    const isAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+                                    const canEdit = isOwner || isAdmin;
 
-                                {receipt.status === 'DRAFT' && (
-                                    <button onClick={() => setIsEditMode(true)} className="h-10 w-full flex items-center justify-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition shadow"><Edit3 size={18} /> แก้ไข</button>
-                                )}
+                                    if (!canEdit) {
+                                        return (
+                                            <div className="text-center text-xs text-gray-400 mb-2">
+                                                Sales Team View Only
+                                            </div>
+                                        );
+                                    }
 
-                                {receipt.status === 'ISSUED' && <button onClick={handleRevertToDraftClick} className="h-10 w-full flex items-center justify-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition shadow">กลับเป็นฉบับร่าง</button>}
+                                    return (
+                                        <>
+                                            <div className="flex justify-center mb-2">
+                                                {receipt.status === 'DRAFT' && <div className="h-10 w-full flex items-center justify-center gap-2 bg-yellow-50 text-yellow-800 px-4 py-2 rounded-lg border border-yellow-200 shadow-sm font-medium">ฉบับร่าง (Draft)</div>}
+                                                {receipt.status === 'ISSUED' && <div className="h-10 w-full flex items-center justify-center gap-2 bg-green-50 text-green-800 px-4 py-2 rounded-lg border border-green-200 shadow-sm font-medium">ออกแล้ว (Issued)</div>}
+                                            </div>
 
-                                {receipt.status === 'DRAFT' && (
-                                    <button
-                                        onClick={requestConfirmReceipt}
-                                        disabled={isConfirming}
-                                        className="h-10 w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow disabled:opacity-50"
-                                    >
-                                        {isConfirming ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />} ยืนยันเอกสาร
-                                    </button>
-                                )}
+                                            {receipt.status === 'DRAFT' && (
+                                                <button onClick={() => setIsEditMode(true)} className="h-10 w-full flex items-center justify-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition shadow"><Edit3 size={18} /> แก้ไข</button>
+                                            )}
+
+                                            {receipt.status === 'ISSUED' && <button onClick={handleRevertToDraftClick} className="h-10 w-full flex items-center justify-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition shadow">กลับเป็นฉบับร่าง</button>}
+
+                                            {receipt.status === 'DRAFT' && (
+                                                <button
+                                                    onClick={requestConfirmReceipt}
+                                                    disabled={isConfirming}
+                                                    className="h-10 w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow disabled:opacity-50"
+                                                >
+                                                    {isConfirming ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />} ยืนยันเอกสาร
+                                                </button>
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </>
                         )}
                         <button onClick={() => window.print()} className="h-10 w-full flex items-center justify-center gap-2 text-white px-6 py-2 rounded-lg transition shadow bg-[#15803d] hover:bg-[#166534]"><Printer size={18} /> พิมพ์ / PDF</button>

@@ -65,8 +65,8 @@ export const authorize = (...roles: string[]) => {
 // Helper to build owner filter with Admin bypass
 // Use for models with 'ownerId' field (Lead, Contact, Deal)
 export const getOwnerFilter = (user: AuthRequest['user']) => {
-    if (user?.role === 'ADMIN') {
-        return {}; // Admin sees all
+    if (user?.role === 'ADMIN' || user?.role === 'MANAGER') {
+        return {}; // Admin/Manager sees all
     }
     if (!user?.id) {
         return { ownerId: 'unauthorized' }; // Return invalid ID to ensure no results
@@ -77,8 +77,8 @@ export const getOwnerFilter = (user: AuthRequest['user']) => {
 // Helper to build user filter with Admin bypass
 // Use for models with 'userId' field (Activity)
 export const getUserFilter = (user: AuthRequest['user']) => {
-    if (user?.role === 'ADMIN') {
-        return {}; // Admin sees all
+    if (user?.role === 'ADMIN' || user?.role === 'MANAGER') {
+        return {}; // Admin/Manager sees all
     }
     if (!user?.id) {
         return { userId: 'unauthorized' }; // Return invalid ID to ensure no results
@@ -88,7 +88,7 @@ export const getUserFilter = (user: AuthRequest['user']) => {
 
 // Helper for Deal access (Owner OR Sales Team Member)
 export const getDealAccessFilter = (user: AuthRequest['user']) => {
-    if (user?.role === 'ADMIN') {
+    if (user?.role === 'ADMIN' || user?.role === 'MANAGER') {
         return {};
     }
     if (!user?.id) {

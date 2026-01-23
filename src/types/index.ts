@@ -59,6 +59,7 @@ export interface Contact {
     city?: string;
     country?: string;
     notes?: string;
+    ownerId: string;
     createdAt: string;
     updatedAt: string;
     _count?: {
@@ -256,4 +257,24 @@ export interface Receipt {
 
     invoiceId: string;
     invoice?: Invoice;
+}
+
+export interface CompanySummary {
+    name: string;
+    contactCount: number;
+    activeDealsCount: number;
+    wonDealsCount: number;
+    totalDealsValue: number;
+}
+
+export interface CompanyDetail {
+    name: string;
+    contacts: Contact[];
+    deals: Deal[];
+    summary: {
+        contactCount: number;
+        totalDealsValue: number;
+        activeDealsCount: number;
+        wonDealsCount: number;
+    };
 }

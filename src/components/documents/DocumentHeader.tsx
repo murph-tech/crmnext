@@ -1,10 +1,11 @@
 import React from 'react';
-import { CompanyInfo } from '@/lib/document-utils';
+import { CompanyInfo, getTranslation, Language } from '@/lib/document-utils';
+
+type DocumentType = 'quotation' | 'invoice' | 'receipt';
 
 interface DocumentHeaderProps {
     companyInfo: CompanyInfo;
-    titleEn: string;
-    titleTh: string;
+    documentType: DocumentType;
     docNumber: string;
     themeColor: string;
     showOriginal?: boolean;
@@ -12,41 +13,56 @@ interface DocumentHeaderProps {
 
 export const DocumentHeader: React.FC<DocumentHeaderProps> = ({
     companyInfo,
-    titleEn,
-    titleTh,
+    documentType,
     docNumber,
     themeColor,
-    showOriginal = true
+    showOriginal = true,
+    language = 'th'
 }) => {
+    const titleEn = getTranslation(documentType, 'en');
+    const titleTh = getTranslation(documentType, 'th');
     return (
-        <div className="flex justify-between items-start mb-2">
-            <div className="flex gap-3 items-start">
-                {companyInfo.companyLogo ? (
-                    <img src={companyInfo.companyLogo} alt="Logo" className="w-[50px] h-[50px] object-contain" />
-                ) : (
-                    <div className="w-[50px] h-[50px] rounded flex items-center justify-center text-white text-[7pt] font-bold leading-tight text-center" style={{ backgroundColor: themeColor }}>
-                        MURPH<br />TECHNOLOGY
+        <div className="mb-2">
+            {/* Compact Header: Company Info + Stamp Space + Document Title */}
+            <div className="flex justify-between items-center">
+                <div className="flex gap-2 items-center flex-1 max-w-[50%]">
+                    {companyInfo.companyLogo ? (
+                        <img src={companyInfo.companyLogo} alt="Logo" className="w-[35px] h-[35px] object-contain" />
+                    ) : (
+                        <div className="w-[35px] h-[35px] rounded flex items-center justify-center text-white text-[5pt] font-bold leading-tight text-center" style={{ backgroundColor: themeColor }}>
+                            MURPH<br />TECH
+                        </div>
+                    )}
+                    <div className="text-[6pt] leading-tight">
+                        <div className="font-bold text-[10pt]" style={{ color: themeColor }}>Murph Technology Co.,Ltd</div>
+                        <div className="text-gray-700 text-[5pt]">
+                            69/43 Village No. 3, Bang Yai Subdistrict, Bang Yai District, Nonthaburi 11140
+                        </div>
+                        <div className="text-gray-700 text-[5pt]">
+                            เลขที่ผู้เสียภาษี 0105567026446 | โทร: 0941843614
+                        </div>
                     </div>
-                )}
-                <div className="text-[9pt]">
-                    <h1 className="text-[14pt] font-bold" style={{ color: themeColor }}>{companyInfo.companyName}</h1>
-                    <p className="text-gray-700 leading-tight text-[8pt]">
-                        {companyInfo.companyAddress}<br />
-                        เลขที่ผู้เสียภาษี {companyInfo.companyTaxId} | (สำนักงานใหญ่)<br />
-                        โทร: {companyInfo.companyPhone} | {companyInfo.companyEmail}
-                    </p>
                 </div>
-            </div>
 
-            <div className="flex flex-col items-end">
-                {showOriginal && <div className="text-[7pt] text-gray-500 mb-1">ต้นฉบับ / Original</div>}
-                <div className="flex border-2 overflow-hidden" style={{ borderColor: themeColor }}>
-                    <div className="px-4 py-3 text-white text-center min-w-[90px]" style={{ backgroundColor: themeColor }}>
-                        <div className="text-[14pt] font-bold leading-none">{titleEn}</div>
-                        <div className="text-[8pt]">{titleTh}</div>
-                    </div>
-                    <div className="px-4 py-3 flex items-center justify-center bg-white min-w-[100px]">
-                        <span className="text-[12pt] font-bold" style={{ color: themeColor }}>{docNumber}</span>
+                {/* Center space for stamp */}
+                <div className="flex justify-center items-center min-h-[55px] min-w-[90px] flex-shrink-0">
+                    {/* Stamp placeholder */}
+                </div>
+
+                <div className="flex flex-col items-end flex-1 max-w-[40%]">
+                    {showOriginal && <div className="text-[6pt] text-gray-500 mb-0.5">ต้นฉบับ / Original</div>}
+                    <div className="flex border-2 overflow-hidden" style={{ borderColor: themeColor }}>
+                        <div className={`px-3 py-2 text-white text-center grid grid-rows-2 gap-0 ${documentType === 'invoice' ? 'min-w-[180px]' : 'min-w-[100px]'}`} style={{ backgroundColor: themeColor }}>
+                            <div className="text-[11pt] font-bold flex items-center justify-center">
+                                {titleEn}
+                            </div>
+                            <div className="text-[7pt] flex items-center justify-center border-t border-white/20 pt-0.5">
+                                {titleTh}
+                            </div>
+                        </div>
+                        <div className={`px-3 py-2 flex items-center justify-center bg-white ${documentType === 'invoice' ? 'min-w-[130px]' : 'min-w-[100px]'}`}>
+                            <span className="text-[10pt] font-bold" style={{ color: themeColor }}>{docNumber}</span>
+                        </div>
                     </div>
                 </div>
             </div>

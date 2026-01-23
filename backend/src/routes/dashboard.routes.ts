@@ -14,24 +14,93 @@ const getStartDate = (timeframe: string = 'week'): Date => {
     if (timeframe === 'month') {
         return new Date(now.getFullYear(), now.getMonth(), 1);
     } else if (timeframe === 'year') {
-        return new Date(now.getFullYear(), 0, 1);
+        const d = new Date(now);
+        d.setFullYear(d.getFullYear() - 1);
+        d.setHours(0, 0, 0, 0);
+        return d;
     } else {
-        // Default to week: Start from last Sunday
-        const day = now.getDay();
-        const diff = now.getDate() - day;
-        startDate.setDate(diff);
+        // Default to week: Last 7 days
+        startDate.setDate(now.getDate() - 7);
         startDate.setHours(0, 0, 0, 0);
         return startDate;
     }
 };
 
+const parseDate = (value?: string): Date | undefined => {
+    if (!value) return undefined;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return undefined;
+    return d;
+};
+
+const endOfDay = (d: Date) => {
+    const x = new Date(d);
+    x.setHours(23, 59, 59, 999);
+    return x;
+};
+
+const getRangeFromQuery = (reqQuery: any): { start: Date; end: Date; timeframe?: string } | { error: string } => {
+    const { timeframe = 'week', startDate, endDate } = reqQuery as { timeframe?: string; startDate?: string; endDate?: string };
+
+    const hasStart = !!startDate;
+    const hasEnd = !!endDate;
+    if (hasStart !== hasEnd) {
+        return { error: 'startDate and endDate must be provided together' };
+    }
+
+    if (hasStart && hasEnd) {
+        const s = parseDate(startDate);
+        const e = parseDate(endDate);
+        if (!s || !e) return { error: 'Invalid startDate or endDate' };
+        const start = new Date(s);
+        start.setHours(0, 0, 0, 0);
+        const end = endOfDay(e);
+        return { start, end };
+    }
+
+    const start = getStartDate(timeframe);
+    const end = new Date();
+    return { start, end, timeframe };
+};
+
+const getGranularity = (start: Date, end: Date, fallbackTimeframe?: string): 'day' | 'month' => {
+    if (fallbackTimeframe === 'year') return 'month';
+    const ms = end.getTime() - start.getTime();
+    const days = Math.max(1, Math.ceil(ms / (24 * 60 * 60 * 1000)));
+    // If range is big, group by month; otherwise group by day
+    return days > 62 ? 'month' : 'day';
+};
+
+const formatKey = (d: Date, granularity: 'day' | 'month') => {
+    if (granularity === 'month') {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const initBuckets = (start: Date, end: Date, granularity: 'day' | 'month') => {
+    const keys: string[] = [];
+    const cursor = new Date(start);
+    cursor.setHours(0, 0, 0, 0);
+    while (cursor <= end) {
+        keys.push(formatKey(cursor, granularity));
+        if (granularity === 'month') {
+            cursor.setMonth(cursor.getMonth() + 1, 1);
+        } else {
+            cursor.setDate(cursor.getDate() + 1);
+        }
+    }
+    return keys;
+};
+
 // Get dashboard stats
 router.get('/stats', async (req: AuthRequest, res, next) => {
     try {
-        const { timeframe = 'week' } = req.query as { timeframe?: string };
+        const range = getRangeFromQuery(req.query);
+        if ('error' in range) return res.status(400).json({ error: range.error });
+        const { start: startDate, end: endDate } = range;
         const ownerFilter = getOwnerFilter(req.user);
         const dealAccessFilter = getDealAccessFilter(req.user);
-        const startDate = getStartDate(timeframe);
 
         // Get counts
         const [
@@ -46,7 +115,7 @@ router.get('/stats', async (req: AuthRequest, res, next) => {
             prisma.lead.count({
                 where: {
                     ...ownerFilter,
-                    createdAt: { gte: startDate },
+                    createdAt: { gte: startDate, lte: endDate },
                 },
             }),
             prisma.contact.count({ where: ownerFilter }),
@@ -61,7 +130,7 @@ router.get('/stats', async (req: AuthRequest, res, next) => {
                 where: {
                     ...dealAccessFilter,
                     stage: 'CLOSED_WON',
-                    updatedAt: { gte: startDate },
+                    updatedAt: { gte: startDate, lte: endDate },
                 },
                 select: { value: true },
             }),
@@ -96,7 +165,7 @@ router.get('/stats', async (req: AuthRequest, res, next) => {
             where: {
                 ...userFilter,
                 completed: true,
-                completedAt: { gte: startDate },
+                completedAt: { gte: startDate, lte: endDate },
             },
         });
 
@@ -106,7 +175,7 @@ router.get('/stats', async (req: AuthRequest, res, next) => {
             where: {
                 ...userFilter,
                 completed: false,
-                dueDate: { gte: startDate },
+                dueDate: { gte: startDate, lte: endDate },
             },
         });
 
@@ -135,13 +204,14 @@ router.get('/stats', async (req: AuthRequest, res, next) => {
 // Get recent activity
 router.get('/recent-activity', async (req: AuthRequest, res, next) => {
     try {
-        const { timeframe = 'week' } = req.query as { timeframe?: string };
-        const startDate = getStartDate(timeframe);
+        const range = getRangeFromQuery(req.query);
+        if ('error' in range) return res.status(400).json({ error: range.error });
+        const { start: startDate, end: endDate } = range;
 
         const activities = await prisma.activity.findMany({
             where: {
                 ...getUserFilter(req.user),
-                createdAt: { gte: startDate },
+                createdAt: { gte: startDate, lte: endDate },
             },
             orderBy: { createdAt: 'desc' },
             take: 10,
@@ -192,7 +262,7 @@ router.get('/reminders', async (req: AuthRequest, res, next) => {
     try {
         const userFilter = getUserFilter(req.user);
         const now = new Date();
-        const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 Days ahead
 
         const reminders = await prisma.activity.findMany({
             where: {
@@ -201,7 +271,7 @@ router.get('/reminders', async (req: AuthRequest, res, next) => {
                 OR: [
                     {
                         dueDate: {
-                            lte: tomorrow, // Due by tomorrow (covers overdue)
+                            lte: nextWeek, // Due within next 7 days
                         },
                     },
                     {
@@ -212,6 +282,7 @@ router.get('/reminders', async (req: AuthRequest, res, next) => {
                 ],
             },
             orderBy: { dueDate: 'asc' },
+            take: 20, // Limit
             include: {
                 lead: { select: { id: true, firstName: true, lastName: true } },
                 deal: { select: { id: true, title: true } },
@@ -224,8 +295,8 @@ router.get('/reminders', async (req: AuthRequest, res, next) => {
     }
 });
 
-// Get sales performance (Admin only)
-router.get('/sales-performance', authorize('ADMIN'), async (req: AuthRequest, res, next) => {
+// Get sales performance (Admin & Manager)
+router.get('/sales-performance', authorize('ADMIN', 'MANAGER'), async (req: AuthRequest, res, next) => {
     try {
         const users = await prisma.user.findMany({
             select: {
@@ -239,7 +310,7 @@ router.get('/sales-performance', authorize('ADMIN'), async (req: AuthRequest, re
         const performance = await Promise.all(
             users.map(async (user) => {
                 const [deals, contacts, leads] = await Promise.all([
-                    prisma.deal.count({ where: { ownerId: user.id } }),
+                    prisma.deal.count({ where: { ownerId: user.id, stage: 'CLOSED_WON' } }),
                     prisma.contact.count({ where: { ownerId: user.id } }),
                     prisma.lead.count({ where: { ownerId: user.id } }),
                 ]);
@@ -269,83 +340,54 @@ router.get('/sales-performance', authorize('ADMIN'), async (req: AuthRequest, re
 // Get won deals chart data
 router.get('/won-deals', async (req: AuthRequest, res, next) => {
     try {
-        const { timeframe = 'week' } = req.query;
+        const range = getRangeFromQuery(req.query);
+        if ('error' in range) return res.status(400).json({ error: range.error });
+        const { start: startDate, end: endDate, timeframe } = range;
+        const { mode = 'value' } = req.query as { mode?: string };
         const dealAccessFilter = getDealAccessFilter(req.user);
-
-        const now = new Date();
-        let startDate = new Date();
-
-        // Fix start date calculation
-        if (timeframe === 'month') {
-            startDate = new Date(now.getFullYear(), now.getMonth(), 1); // Start of month
-        } else if (timeframe === 'year') {
-            startDate = new Date(now.getFullYear(), 0, 1); // Start of year
-        } else {
-            // Default to week: Start from last Sunday
-            const day = now.getDay();
-            const diff = now.getDate() - day; // Adjusts so Sunday is start
-            startDate = new Date(now);
-            startDate.setDate(diff);
-            startDate.setHours(0, 0, 0, 0);
-        }
+        const granularity = getGranularity(startDate, endDate, timeframe);
 
         const deals = await prisma.deal.findMany({
             where: {
                 ...dealAccessFilter,
                 stage: { in: ['CLOSED_WON', 'CLOSED_LOST'] },
-                updatedAt: { gte: startDate },
+                closedAt: { gte: startDate, lte: endDate },
             },
             select: {
-                updatedAt: true,
+                closedAt: true,
                 value: true,
                 stage: true,
+                owner: { select: { name: true } },
             },
-            orderBy: { updatedAt: 'asc' },
+            orderBy: { closedAt: 'asc' },
         });
 
         // Aggregate data
-        const dataMap = new Map<string, { won: number; lost: number }>();
+        const dataMap = new Map<string, { won: number; lost: number; breakdown: Record<string, number> }>();
 
         // Initialize map with 0s
         const initData = (key: string) => {
             if (!dataMap.has(key)) {
-                dataMap.set(key, { won: 0, lost: 0 });
+                dataMap.set(key, { won: 0, lost: 0, breakdown: {} });
             }
         };
 
-        if (timeframe === 'week') {
-            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            days.forEach(day => initData(day));
-        } else if (timeframe === 'month') {
-            const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-            for (let i = 1; i <= daysInMonth; i++) {
-                initData(String(i));
-            }
-        } else if (timeframe === 'year') {
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            months.forEach(month => initData(month));
-        }
+        initBuckets(startDate, endDate, granularity).forEach(k => initData(k));
 
         deals.forEach(deal => {
-            const date = new Date(deal.updatedAt);
-            let key = '';
-
-            if (timeframe === 'week') {
-                const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                key = days[date.getDay()];
-            } else if (timeframe === 'month') {
-                key = String(date.getDate());
-            } else if (timeframe === 'year') {
-                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                key = months[date.getMonth()];
-            }
+            if (!deal.closedAt) return;
+            const date = new Date(deal.closedAt);
+            const key = formatKey(date, granularity);
+            const ownerName = deal.owner?.name || 'Unknown';
 
             if (dataMap.has(key)) {
                 const entry = dataMap.get(key)!;
                 if (deal.stage === 'CLOSED_WON') {
-                    entry.won += Number(deal.value);
+                    const val = mode === 'count' ? 1 : Number(deal.value);
+                    entry.won += val;
+                    entry.breakdown[ownerName] = (entry.breakdown[ownerName] || 0) + val;
                 } else if (deal.stage === 'CLOSED_LOST') {
-                    entry.lost += Number(deal.value);
+                    entry.lost += mode === 'count' ? 1 : Number(deal.value);
                 }
             }
         });
@@ -354,6 +396,7 @@ router.get('/won-deals', async (req: AuthRequest, res, next) => {
             name,
             won: values.won,
             lost: values.lost,
+            ...values.breakdown, // Spread names for Bar components
         }));
 
         res.json(chartData);
@@ -365,80 +408,80 @@ router.get('/won-deals', async (req: AuthRequest, res, next) => {
 // Get deals count chart data (New vs Won count)
 router.get('/deals-count', async (req: AuthRequest, res, next) => {
     try {
-        const { timeframe = 'week' } = req.query as { timeframe?: string };
+        const range = getRangeFromQuery(req.query);
+        if ('error' in range) return res.status(400).json({ error: range.error });
+        const { start: startDate, end: endDate, timeframe } = range;
         const dealAccessFilter = getDealAccessFilter(req.user);
-        const startDate = getStartDate(timeframe);
+        const granularity = getGranularity(startDate, endDate, timeframe);
 
         // Fetch New Deals (based on createdAt)
         const newDeals = await prisma.deal.findMany({
             where: {
                 ...dealAccessFilter,
-                createdAt: { gte: startDate },
+                createdAt: { gte: startDate, lte: endDate },
             },
             select: { createdAt: true },
         });
 
-        // Fetch Won Deals (based on updatedAt and stage)
+        // Fetch Won Deals (based on closedAt and stage)
         const wonDeals = await prisma.deal.findMany({
             where: {
                 ...dealAccessFilter,
                 stage: 'CLOSED_WON',
-                updatedAt: { gte: startDate },
+                closedAt: { gte: startDate, lte: endDate },
             },
-            select: { updatedAt: true },
+            select: { closedAt: true },
         });
 
-        const dataMap = new Map<string, { new: number; won: number }>();
+        // Fetch Lost Deals (based on closedAt and stage)
+        const lostDeals = await prisma.deal.findMany({
+            where: {
+                ...dealAccessFilter,
+                stage: 'CLOSED_LOST',
+                closedAt: { gte: startDate, lte: endDate },
+            },
+            select: { closedAt: true },
+        });
+
+        const dataMap = new Map<string, { new: number; won: number; lost: number }>();
 
         // Init map
         const initData = (key: string) => {
             if (!dataMap.has(key)) {
-                dataMap.set(key, { new: 0, won: 0 });
+                dataMap.set(key, { new: 0, won: 0, lost: 0 });
             }
         };
 
-        const now = new Date();
-        if (timeframe === 'week') {
-            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            days.forEach(day => initData(day));
-        } else if (timeframe === 'month') {
-            const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-            for (let i = 1; i <= daysInMonth; i++) {
-                initData(String(i));
-            }
-        } else if (timeframe === 'year') {
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            months.forEach(month => initData(month));
-        }
+        initBuckets(startDate, endDate, granularity).forEach(k => initData(k));
 
         // Helper to get key
-        const getKey = (dateStr: Date) => {
+        const getKey = (dateStr: Date | null | undefined) => {
+            if (!dateStr) return null;
             const date = new Date(dateStr);
-            if (timeframe === 'week') {
-                const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                return days[date.getDay()];
-            } else if (timeframe === 'month') {
-                return String(date.getDate());
-            } else if (timeframe === 'year') {
-                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                return months[date.getMonth()];
-            }
-            return '';
+            return formatKey(date, granularity);
         };
 
         // Aggregate New Deals
         newDeals.forEach(deal => {
             const key = getKey(deal.createdAt);
-            if (dataMap.has(key)) {
+            if (key && dataMap.has(key)) {
                 dataMap.get(key)!.new += 1;
             }
         });
 
         // Aggregate Won Deals
         wonDeals.forEach(deal => {
-            const key = getKey(deal.updatedAt);
-            if (dataMap.has(key)) {
+            const key = getKey(deal.closedAt);
+            if (key && dataMap.has(key)) {
                 dataMap.get(key)!.won += 1;
+            }
+        });
+
+        // Aggregate Lost Deals
+        lostDeals.forEach(deal => {
+            const key = getKey(deal.closedAt);
+            if (key && dataMap.has(key)) {
+                dataMap.get(key)!.lost += 1;
             }
         });
 
@@ -446,6 +489,7 @@ router.get('/deals-count', async (req: AuthRequest, res, next) => {
             name,
             new: values.new,
             won: values.won,
+            lost: values.lost,
         }));
 
         res.json(chartData);

@@ -20,11 +20,14 @@ export const DocumentLayout: React.FC<DocumentLayoutProps & { paperClass?: strin
 
             {/* FOOTER */}
             <div className="mt-auto">
-                <div className="w-full text-white text-[7pt] py-1.5 px-3 flex justify-between items-center" style={{ backgroundColor: themeColor }}>
-                    <span className="font-medium">{companyInfo.companyName}</span>
-                    <span>{companyInfo.companyAddress} เลขที่ผู้เสียภาษี {companyInfo.companyTaxId} (สำนักงานใหญ่) โทร. {companyInfo.companyPhone}</span>
+                <div className="w-full text-white text-[7pt] py-3 px-3" style={{ backgroundColor: themeColor }}>
+                    <div className="text-center leading-tight">
+                        <div className="font-medium text-[8pt] mb-1">Murph Technology Co.,Ltd</div>
+                        <div className="text-[6pt]">69/43 Village No. 3, Bang Yai Subdistrict, Bang Yai District, Nonthaburi 11140</div>
+                        <div className="text-[6pt] mt-0.5 opacity-90">เลขที่ผู้เสียภาษี 0105567026446 | โทร: 0941843614</div>
+                    </div>
                 </div>
-                <div className="text-[7pt] text-gray-500 mt-1">หน้า 1 / 1</div>
+                <div className="text-[7pt] text-gray-500 mt-2 text-center">หน้า 1 / 1</div>
             </div>
         </div>
     );

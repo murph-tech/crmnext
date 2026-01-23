@@ -50,7 +50,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 setSettings(data);
                 lastFetchTime.current = Date.now();
             } catch (error) {
-                console.error('Failed to load settings:', error);
+                // In development mode, mock data is returned automatically
+                // In production, this error would indicate backend issues
+                if (process.env.NODE_ENV !== 'development') {
+                    console.error('Failed to load settings:', error);
+                }
             } finally {
                 setIsLoading(false);
                 fetchPromise.current = null;

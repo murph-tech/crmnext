@@ -29,8 +29,43 @@ model User {
   deals      Deal[]
   salesDeals Deal[]   @relation("DealSalesTeam")
   activities Activity[]
+  calendarEvents CalendarEvent[]
 
   @@map("users")
+}
+
+// ==================== CALENDAR SYSTEM ====================
+model CalendarEvent {
+  id            String   @id @default(cuid())
+  userId        String   // Owner of the event
+  title         String
+  description   String?
+  startTime     DateTime
+  endTime       DateTime
+  location      String?
+  attendees     String?  // JSON array of attendee emails
+  dealId        String?  // Link to CRM deal
+  contactId     String?  // Link to CRM contact
+  activityId    String?  // Link to CRM activity
+  status        String   @default("confirmed") // 'confirmed', 'tentative', 'cancelled'
+  color         String   @default("#3B82F6") // Event color
+  isAllDay      Boolean  @default(false)
+  recurrence    String?  // Recurrence rule (RRULE)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deal          Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  contact       Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  activity      Activity? @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([dealId])
+  @@index([contactId])
+  @@index([activityId])
+  @@index([startTime])
+  @@map("calendar_events")
 }
 
 enum Role {
@@ -90,7 +125,7 @@ model Contact {
   id          String   @id @default(cuid())
   firstName   String
   lastName    String
-  email       String   @unique
+  email       String
   phone       String?
   company     String?
   jobTitle    String?
@@ -111,6 +146,7 @@ model Contact {
   // Converted from Lead
   convertedFromId String? @unique
   convertedFrom   Lead?   @relation(fields: [convertedFromId], references: [id])
+  calendarEvents  CalendarEvent[]
 
   @@map("contacts")
 }
@@ -131,6 +167,7 @@ model Deal {
 
   // Quotation Fields
   quotationNumber String?   @unique
+  @@index([quotationNumber])
   quotationDate   DateTime?
   validUntil      DateTime?
   creditTerm      Int?      @default(30) // Days
@@ -167,12 +204,14 @@ model Deal {
   // Converted from Lead
   convertedFromId String? @unique
   convertedFrom   Lead?   @relation(fields: [convertedFromId], references: [id])
+  calendarEvents  CalendarEvent[]
 
   @@map("deals")
 }
 
 enum DealStage {
   QUALIFIED
+  DISCOVERY
   PROPOSAL
   NEGOTIATION
   CLOSED_WON
@@ -210,6 +249,7 @@ model Activity {
   contact   Contact? @relation(fields: [contactId], references: [id])
   dealId    String?
   deal      Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  calendarEvents CalendarEvent[]
 
   @@index([dealId, createdAt])
   @@map("activities")

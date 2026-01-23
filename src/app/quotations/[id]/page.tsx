@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import { api } from '@/lib/api';
 import { Deal } from '@/types';
-import { formatMoney, formatDateTh, getCompanyInfo } from '@/lib/document-utils';
+import { formatMoney, formatDateTh, getCompanyInfo, getTranslation, Language } from '@/lib/document-utils';
 import { bahttext } from '@/lib/bahttext';
 import { DocumentsNav } from '@/components/documents/DocumentsNav';
 import { DocumentHeader } from '@/components/documents/DocumentHeader';
@@ -53,7 +53,7 @@ type Language = 'th' | 'en';
 export default function QuotationPage() {
     const { id } = useParams();
     const router = useRouter();
-    const { token } = useAuth();
+    const { token, user } = useAuth();
     const { settings } = useSettings();
     const [deal, setDeal] = useState<Deal | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -408,52 +408,63 @@ export default function QuotationPage() {
                         {/* HEADER */}
                         <DocumentHeader
                             companyInfo={companyInfo}
-                            titleEn="Quotation"
-                            titleTh="ใบเสนอราคา"
+                            documentType="quotation"
                             docNumber={deal.quotationNumber || '-'}
                             themeColor={themeColor || '#006B5A'}
                             showOriginal={true}
                         />
 
                         {/* INFO GRID */}
-                        <div className="border mb-3" style={{ borderColor: themeColor }}>
-                            <div className="grid grid-cols-2">
+                        <div className="border mb-4" style={{ borderColor: themeColor }}>
+                            <div className="grid grid-cols-2 gap-0">
                                 {/* Left Column - Customer Info */}
-                                <div className="p-2 border-r text-[8pt]" style={{ borderColor: themeColor }}>
+                                <div className="p-3 border-r text-[8pt]" style={{ borderColor: themeColor }}>
                                     <table className="w-full">
                                         <tbody>
-                                            <tr><td className="font-bold py-0.5 w-[85px] align-top">ชื่อลูกค้า<br /><span className="font-normal text-gray-500 text-[7pt]">Customer Name</span></td><td className="py-0.5 font-medium">{customerName}</td></tr>
-                                            <tr><td className="font-bold py-0.5 align-top">เลขที่ผู้เสียภาษี<br /><span className="font-normal text-gray-500 text-[7pt]">Tax ID</span></td><td className="py-0.5">{customerTaxId} (สำนักงานใหญ่)</td></tr>
-                                            <tr><td className="font-bold py-0.5 align-top">ที่อยู่<br /><span className="font-normal text-gray-500 text-[7pt]">Address</span></td><td className="py-0.5 leading-tight">{customerAddress}<br /><span className="text-gray-600">โทร: {customerPhone}</span></td></tr>
+                                            <tr>
+                                                <td className="font-bold py-1 w-[85px] align-top text-left pl-1 whitespace-nowrap">ชื่อลูกค้า<br /><span className="font-normal text-gray-500 text-[7pt]">Customer Name</span></td>
+                                                <td className="py-1 pl-2 font-medium break-words">{customerName}</td>
+                                            </tr>
+                                            <tr>
+                                                <td className="font-bold py-1 align-top text-left pl-1 whitespace-nowrap">เลขที่ผู้เสียภาษี<br /><span className="font-normal text-gray-500 text-[7pt]">Tax ID</span></td>
+                                                <td className="py-1 pl-2">{customerTaxId} (สำนักงานใหญ่)</td>
+                                            </tr>
+                                            <tr>
+                                                <td className="font-bold py-1 align-top text-left pl-1 whitespace-nowrap">ที่อยู่<br /><span className="font-normal text-gray-500 text-[7pt]">Address</span></td>
+                                                <td className="py-1 pl-2 leading-tight break-words">
+                                                    <div className="mb-1">{customerAddress}</div>
+                                                    <div className="text-gray-600 text-[7pt]">โทร: {customerPhone}</div>
+                                                </td>
+                                            </tr>
                                         </tbody>
                                     </table>
                                 </div>
 
                                 {/* Right Column - Document Info */}
-                                <div className="p-2 text-[7.5pt]">
+                                <div className="p-3 text-[8pt]">
                                     <table className="w-full">
                                         <tbody>
                                             <tr>
-                                                <td className="font-bold py-0.5 w-[65px] align-top whitespace-nowrap">วันที่<br /><span className="font-normal text-gray-500 text-[6pt]">Issue Date</span></td>
-                                                <td className="py-0.5 w-[75px]">: {formatDateTh(deal.quotationDate)}</td>
-                                                <td className="font-bold py-0.5 w-[60px] align-top whitespace-nowrap">พนักงานขาย<br /><span className="font-normal text-gray-500 text-[6pt]">Salesman</span></td>
-                                                <td className="py-0.5 truncate max-w-[70px]">: {deal.owner?.name || '-'}</td>
+                                                <td className="font-bold py-1 w-[75px] align-top text-left pl-1 whitespace-nowrap">วันที่<br /><span className="font-normal text-gray-500 text-[7pt]">Issue Date</span></td>
+                                                <td className="py-2 pl-1 w-[75px]">: {formatDateTh(deal.quotationDate)}</td>
+                                                <td className="font-bold py-1 w-[70px] align-top text-left pl-1 whitespace-nowrap">พนักงานขาย<br /><span className="font-normal text-gray-500 text-[7pt]">Salesman</span></td>
+                                                <td className="py-1 pl-2 truncate">: {deal.owner?.name || '-'}</td>
                                             </tr>
                                             <tr>
-                                                <td className="font-bold py-0.5 align-top whitespace-nowrap">การชำระเงิน<br /><span className="font-normal text-gray-500 text-[6pt]">Credit Term</span></td>
-                                                <td className="py-0.5">: {creditTermVal} วัน</td>
-                                                <td className="font-bold py-0.5 align-top whitespace-nowrap">เบอร์ติดต่อ<br /><span className="font-normal text-gray-500 text-[6pt]">Contact No.</span></td>
-                                                <td className="py-0.5 text-[7pt]">: {companyPhone}</td>
+                                                <td className="font-bold py-1 align-top text-left pl-1 whitespace-nowrap">การชำระเงิน<br /><span className="font-normal text-gray-500 text-[7pt]">Credit Term</span></td>
+                                                <td className="py-1 pl-2">: {creditTermVal} วัน</td>
+                                                <td className="font-bold py-1 align-top text-left pl-1 whitespace-nowrap">เบอร์ติดต่อ<br /><span className="font-normal text-gray-500 text-[7pt]">Contact No.</span></td>
+                                                <td className="py-1 pl-2">: {companyPhone}</td>
                                             </tr>
                                             <tr>
-                                                <td className="font-bold py-0.5 align-top whitespace-nowrap">ผู้ติดต่อ<br /><span className="font-normal text-gray-500 text-[6pt]">Contact Name</span></td>
-                                                <td className="py-0.5">: {contactFullName}</td>
-                                                <td className="font-bold py-0.5 align-top whitespace-nowrap">อีเมล<br /><span className="font-normal text-gray-500 text-[6pt]">E-mail</span></td>
-                                                <td className="py-0.5 text-[6.5pt] truncate max-w-[80px]">: {customerEmail}</td>
+                                                <td className="font-bold py-1 align-top text-left pl-1 whitespace-nowrap">ผู้ติดต่อ<br /><span className="font-normal text-gray-500 text-[7pt]">Contact Name</span></td>
+                                                <td className="py-1 pl-2">: {contactFullName}</td>
+                                                <td className="font-bold py-1 align-top text-left pl-1 whitespace-nowrap">อีเมล<br /><span className="font-normal text-gray-500 text-[7pt]">E-mail</span></td>
+                                                <td className="py-1 pl-2 truncate">: {customerEmail}</td>
                                             </tr>
                                             <tr>
-                                                <td className="font-bold py-0.5 align-top whitespace-nowrap">ชื่อโปรเจกต์<br /><span className="font-normal text-gray-500 text-[6pt]">Project Name</span></td>
-                                                <td colSpan={3} className="py-0.5 font-bold">: {deal.title}</td>
+                                                <td className="font-bold py-1 align-top text-left pl-1 whitespace-nowrap">ชื่อโปรเจกต์<br /><span className="font-normal text-gray-500 text-[7pt]">Project Name</span></td>
+                                                <td colSpan={3} className="py-1 pl-2 font-bold break-words">: {deal.title}</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -466,12 +477,30 @@ export default function QuotationPage() {
                             <table className="w-full border-collapse text-[8pt]">
                                 <thead>
                                     <tr style={{ backgroundColor: themeColor }} className="text-white">
-                                        <th className="py-2 px-2 w-[40px] text-center font-bold border-r border-white/30">เลขที่<br /><span className="font-normal text-[7pt]">No.</span></th>
-                                        <th className="py-2 px-2 text-left font-bold border-r border-white/30">รายการ<br /><span className="font-normal text-[7pt]">Description</span></th>
-                                        <th className="py-2 px-2 w-[55px] text-center font-bold border-r border-white/30">จำนวน<br /><span className="font-normal text-[7pt]">Quantity</span></th>
-                                        <th className="py-2 px-2 w-[75px] text-right font-bold border-r border-white/30">ราคา/หน่วย<br /><span className="font-normal text-[7pt]">Unit Price</span></th>
-                                        <th className="py-2 px-2 w-[65px] text-right font-bold border-r border-white/30">ส่วนลด<br /><span className="font-normal text-[7pt]">Discount</span></th>
-                                        <th className="py-2 px-2 w-[85px] text-right font-bold">จำนวนเงิน (THB)<br /><span className="font-normal text-[7pt]">Amount</span></th>
+                                        <th className="py-2 px-2 w-[40px] text-center font-bold border-r border-white/30">
+                                            {language === 'th' ? getTranslation('no', 'th') : getTranslation('no', 'en')}<br />
+                                            <span className="font-normal text-[7pt]">{language === 'th' ? getTranslation('no', 'en') : getTranslation('no', 'th')}</span>
+                                        </th>
+                                        <th className="py-2 px-2 text-left font-bold border-r border-white/30">
+                                            {language === 'th' ? getTranslation('description', 'th') : getTranslation('description', 'en')}<br />
+                                            <span className="font-normal text-[7pt]">{language === 'th' ? getTranslation('description', 'en') : getTranslation('description', 'th')}</span>
+                                        </th>
+                                        <th className="py-2 px-2 w-[55px] text-center font-bold border-r border-white/30">
+                                            {language === 'th' ? getTranslation('quantity', 'th') : getTranslation('quantity', 'en')}<br />
+                                            <span className="font-normal text-[7pt]">{language === 'th' ? getTranslation('quantity', 'en') : getTranslation('quantity', 'th')}</span>
+                                        </th>
+                                        <th className="py-2 px-2 w-[75px] text-right font-bold border-r border-white/30">
+                                            {language === 'th' ? getTranslation('unitPrice', 'th') : getTranslation('unitPrice', 'en')}<br />
+                                            <span className="font-normal text-[7pt]">{language === 'th' ? getTranslation('unitPrice', 'en') : getTranslation('unitPrice', 'th')}</span>
+                                        </th>
+                                        <th className="py-2 px-2 w-[65px] text-right font-bold border-r border-white/30">
+                                            {language === 'th' ? getTranslation('discount', 'th') : getTranslation('discount', 'en')}<br />
+                                            <span className="font-normal text-[7pt]">{language === 'th' ? getTranslation('discount', 'en') : getTranslation('discount', 'th')}</span>
+                                        </th>
+                                        <th className="py-2 px-2 w-[85px] text-right font-bold">
+                                            {language === 'th' ? getTranslation('amount', 'th') : getTranslation('amount', 'en')}<br />
+                                            <span className="font-normal text-[7pt]">{language === 'th' ? getTranslation('amount', 'en') : getTranslation('amount', 'th')}</span>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -553,37 +582,37 @@ export default function QuotationPage() {
 
                             {/* Right Side - Financial Summary */}
                             <div className="w-[220px]">
-                                <table className="w-full text-[7.5pt] border-collapse">
+                                <table className="w-full text-[8pt] border-collapse">
                                     <tbody>
                                         <tr>
-                                            <td className="bg-gray-100 p-1.5 font-bold border border-gray-300 whitespace-nowrap">รวมเป็นเงิน<br /><span className="font-normal text-gray-500 text-[6pt]">Total</span></td>
-                                            <td className="p-1.5 text-right border border-gray-300 font-medium w-[85px]">{formatMoney(subtotal)}</td>
+                                            <td className="bg-gray-100 p-2 font-bold border border-gray-300 whitespace-nowrap">รวมเป็นเงิน<br /><span className="font-normal text-gray-500 text-[7pt]">Total</span></td>
+                                            <td className="p-2 text-right border border-gray-300 font-medium w-[85px]">{formatMoney(subtotal)}</td>
                                         </tr>
                                         <tr>
-                                            <td className="bg-gray-100 p-1.5 font-bold border border-gray-300 whitespace-nowrap">หักส่วนลดพิเศษ<br /><span className="font-normal text-gray-500 text-[6pt]">Special Discount</span></td>
-                                            <td className="p-1.5 text-right border border-gray-300 text-red-600">{formatMoney(totalDiscount)}</td>
+                                            <td className="bg-gray-100 p-2 font-bold border border-gray-300 whitespace-nowrap">หักส่วนลดพิเศษ<br /><span className="font-normal text-gray-500 text-[7pt]">Special Discount</span></td>
+                                            <td className="p-2 text-right border border-gray-300 text-red-600">{formatMoney(totalDiscount)}</td>
                                         </tr>
                                         <tr>
-                                            <td className="bg-gray-100 p-1.5 font-bold border border-gray-300 whitespace-nowrap">ยอดหลังหักส่วนลด<br /><span className="font-normal text-gray-500 text-[6pt]">After Discount</span></td>
-                                            <td className="p-1.5 text-right border border-gray-300 font-medium">{formatMoney(afterDiscount)}</td>
+                                            <td className="bg-gray-100 p-2 font-bold border border-gray-300 whitespace-nowrap">ยอดหลังหักส่วนลด<br /><span className="font-normal text-gray-500 text-[7pt]">After Discount</span></td>
+                                            <td className="p-2 text-right border border-gray-300 font-medium">{formatMoney(afterDiscount)}</td>
                                         </tr>
                                         <tr>
-                                            <td className="bg-gray-100 p-1.5 font-bold border border-gray-300 whitespace-nowrap">ภาษี {vatRate}%<br /><span className="font-normal text-gray-500 text-[6pt]">VAT</span></td>
-                                            <td className="p-1.5 text-right border border-gray-300">{formatMoney(vatAmount)}</td>
+                                            <td className="bg-gray-100 p-2 font-bold border border-gray-300 whitespace-nowrap">ภาษี {vatRate}%<br /><span className="font-normal text-gray-500 text-[7pt]">VAT</span></td>
+                                            <td className="p-2 text-right border border-gray-300">{formatMoney(vatAmount)}</td>
                                         </tr>
                                         <tr style={{ backgroundColor: themeColor }} className="text-white">
-                                            <td className="p-2 font-bold text-[9pt] whitespace-nowrap">รวมทั้งสิ้น<br /><span className="font-normal text-[6pt]">Grand Total</span></td>
+                                            <td className="p-2 font-bold text-[9pt] whitespace-nowrap">รวมทั้งสิ้น<br /><span className="font-normal text-[7pt]">Grand Total</span></td>
                                             <td className="p-2 text-right font-bold text-[10pt]">{formatMoney(grandTotal)}</td>
                                         </tr>
                                         {whtRate > 0 && (
                                             <tr>
-                                                <td className="bg-white p-1.5 font-bold border border-gray-300 whitespace-nowrap">หัก ณ ที่จ่าย {whtRate}%<br /><span className="font-normal text-gray-500 text-[6pt]">Wht</span></td>
-                                                <td className="p-1.5 text-right border border-gray-300 text-red-600">{formatMoney(whtAmount)}</td>
+                                                <td className="bg-white p-2 font-bold border border-gray-300 whitespace-nowrap">หัก ณ ที่จ่าย {whtRate}%<br /><span className="font-normal text-gray-500 text-[7pt]">Wht</span></td>
+                                                <td className="p-2 text-right border border-gray-300 text-red-600">{formatMoney(whtAmount)}</td>
                                             </tr>
                                         )}
                                         <tr>
-                                            <td className="bg-white p-1.5 font-bold border border-gray-300 whitespace-nowrap">ยอดชำระ<br /><span className="font-normal text-gray-500 text-[6pt]">Total</span></td>
-                                            <td className="p-1.5 text-right border border-gray-300 font-bold">{formatMoney(netTotal)}</td>
+                                            <td className="bg-white p-2 font-bold border border-gray-300 whitespace-nowrap">ยอดชำระ<br /><span className="font-normal text-gray-500 text-[7pt]">Total</span></td>
+                                            <td className="p-2 text-right border border-gray-300 font-bold">{formatMoney(netTotal)}</td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -626,68 +655,92 @@ export default function QuotationPage() {
                             </div>
                         )}
 
-                        {isEditMode ? (
-                            <>
-                                <button onClick={handleCancel} className="h-10 w-full flex items-center justify-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition shadow"><X size={18} /> ยกเลิก</button>
-                                <button onClick={handleSave} disabled={isSaving} className="h-10 w-full flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition shadow disabled:opacity-50">{isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} บันทึก</button>
-                                <button onClick={() => setShowDeleteDialog(true)} className="h-10 w-full flex items-center justify-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition shadow"><Trash2 size={18} /> ลบเอกสาร</button>
-                            </>
-                        ) : (
-                            <>
-                                {/* Allow Edit only if DRAFT */}
-                                {deal.quotationStatus === 'DRAFT' && (
-                                    <button onClick={() => setIsEditMode(true)} className="h-10 w-full flex items-center justify-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition shadow"><Edit3 size={18} /> แก้ไข</button>
-                                )}
+                        {(() => {
+                            // Permission Check: Only Owner or Admin/Manager can edit/action
+                            // Sales Team members are Read-Only (Print only)
+                            const isOwner = user?.id === deal.owner?.id;
+                            const isAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+                            const canEdit = isOwner || isAdmin;
 
-                                {/* Confirm/Revert Draft Buttons */}
-                                {(
+                            if (!canEdit) {
+                                return (
                                     <>
-                                        {deal.quotationStatus === 'DRAFT' ? (
-                                            <button onClick={handleConfirmQuotation} disabled={isChangingStatus} className="h-10 w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow disabled:opacity-50">
-                                                {isChangingStatus ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />} ยืนยันเอกสาร
-                                            </button>
-                                        ) : (
-                                            <button onClick={handleRevertToDraft} disabled={isChangingStatus} className="h-10 w-full flex items-center justify-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition shadow disabled:opacity-50">
-                                                {isChangingStatus ? <Loader2 size={18} className="animate-spin" /> : '📝'} กลับเป็นฉบับร่าง
-                                            </button>
-                                        )}
+                                        <button onClick={() => window.print()} className="h-10 w-full flex items-center justify-center gap-2 text-white px-6 py-2 rounded-lg transition shadow bg-[#15803d] hover:bg-[#166534]"><Printer size={18} /> พิมพ์ / PDF</button>
+                                        <div className="text-center text-xs text-gray-400 mt-2">
+                                            Sales Team View Only
+                                        </div>
                                     </>
-                                )}
+                                );
+                            }
 
-                                {/* Customer Approval / Purchase Confirmation Flow */}
-                                {deal.invoice ? (
-                                    <button onClick={() => router.push(`/invoices/${deal.invoice?.id}`)} className="h-10 w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow"><FileText size={18} /> ดูใบวางบิล</button>
-                                ) : (
-                                    <>
-                                        {(deal.quotationApproved || deal.quotationStatus === 'APPROVED') ? (
-                                            <div className="h-10 w-full flex items-center justify-center gap-2 bg-green-50 text-green-800 px-4 py-2 rounded-lg border border-green-200 shadow-sm font-medium">✓ ยืนยันคำสั่งซื้อแล้ว</div>
-                                        ) : (
-                                            <button
-                                                onClick={handleConfirmPurchaseClick}
-                                                disabled={isApproving}
-                                                className={`h-10 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition shadow disabled:opacity-50 bg-emerald-600 text-white hover:bg-emerald-700`}
-                                            >
-                                                {isApproving ? <Loader2 size={18} className="animate-spin" /> : '✓'} ยืนยันคำสั่งซื้อ
-                                            </button>
-                                        )}
+                            return (
+                                <>
+                                    {isEditMode ? (
+                                        <>
+                                            <button onClick={handleCancel} className="h-10 w-full flex items-center justify-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition shadow"><X size={18} /> ยกเลิก</button>
+                                            <button onClick={handleSave} disabled={isSaving} className="h-10 w-full flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition shadow disabled:opacity-50">{isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />} บันทึก</button>
+                                            <button onClick={() => setShowDeleteDialog(true)} className="h-10 w-full flex items-center justify-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition shadow"><Trash2 size={18} /> ลบเอกสาร</button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            {/* Allow Edit only if DRAFT */}
+                                            {deal.quotationStatus === 'DRAFT' && (
+                                                <button onClick={() => setIsEditMode(true)} className="h-10 w-full flex items-center justify-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition shadow"><Edit3 size={18} /> แก้ไข</button>
+                                            )}
 
-                                        {/* To Invoice Enabler */}
-                                        <button
-                                            onClick={handleConvertToInvoice}
-                                            disabled={isConverting}
-                                            className={`h-10 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition shadow disabled:opacity-50 ${(deal.quotationApproved || deal.quotationStatus === 'APPROVED') ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-blue-600 text-white hover:bg-blue-700 opacity-90'}`}
-                                        >
-                                            {isConverting ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />} สร้างใบวางบิล
-                                        </button>
-                                    </>
-                                )}
-                            </>
-                        )}
-                        <button onClick={() => window.print()} className="h-10 w-full flex items-center justify-center gap-2 text-white px-6 py-2 rounded-lg transition shadow bg-[#15803d] hover:bg-[#166534]"><Printer size={18} /> พิมพ์ / PDF</button>
+                                            {/* Confirm/Revert Draft Buttons */}
+                                            {(
+                                                <>
+                                                    {deal.quotationStatus === 'DRAFT' ? (
+                                                        <button onClick={handleConfirmQuotation} disabled={isChangingStatus} className="h-10 w-full flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow disabled:opacity-50">
+                                                            {isChangingStatus ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={18} />} ยืนยันเอกสาร
+                                                        </button>
+                                                    ) : (
+                                                        <button onClick={handleRevertToDraft} disabled={isChangingStatus} className="h-10 w-full flex items-center justify-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition shadow disabled:opacity-50">
+                                                            {isChangingStatus ? <Loader2 size={18} className="animate-spin" /> : '📝'} กลับเป็นฉบับร่าง
+                                                        </button>
+                                                    )}
+                                                </>
+                                            )}
 
-                        {!isEditMode && deal.quotationStatus === 'DRAFT' && !deal.quotationApproved && (
-                            <button onClick={() => setShowDeleteDialog(true)} className="h-10 w-full flex items-center justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 px-4 py-2 rounded-lg transition border border-transparent hover:border-red-200 mt-2"><Trash2 size={18} /> ลบเอกสาร</button>
-                        )}
+                                            {/* Customer Approval / Purchase Confirmation Flow */}
+                                            {deal.invoice ? (
+                                                <button onClick={() => router.push(`/invoices/${deal.invoice?.id}`)} className="h-10 w-full flex items-center justify-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition shadow"><FileText size={18} /> ดูใบวางบิล</button>
+                                            ) : (
+                                                <>
+                                                    {(deal.quotationApproved || deal.quotationStatus === 'APPROVED') ? (
+                                                        <div className="h-10 w-full flex items-center justify-center gap-2 bg-green-50 text-green-800 px-4 py-2 rounded-lg border border-green-200 shadow-sm font-medium">✓ ยืนยันคำสั่งซื้อแล้ว</div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={handleConfirmPurchaseClick}
+                                                            disabled={isApproving}
+                                                            className={`h-10 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition shadow disabled:opacity-50 bg-emerald-600 text-white hover:bg-emerald-700`}
+                                                        >
+                                                            {isApproving ? <Loader2 size={18} className="animate-spin" /> : '✓'} ยืนยันคำสั่งซื้อ
+                                                        </button>
+                                                    )}
+
+                                                    {/* To Invoice Enabler */}
+                                                    <button
+                                                        onClick={handleConvertToInvoice}
+                                                        disabled={isConverting}
+                                                        className={`h-10 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition shadow disabled:opacity-50 ${(deal.quotationApproved || deal.quotationStatus === 'APPROVED') ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-blue-600 text-white hover:bg-blue-700 opacity-90'}`}
+                                                    >
+                                                        {isConverting ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18} />} สร้างใบวางบิล
+                                                    </button>
+                                                </>
+                                            )}
+
+                                            <button onClick={() => window.print()} className="h-10 w-full flex items-center justify-center gap-2 text-white px-6 py-2 rounded-lg transition shadow bg-[#15803d] hover:bg-[#166534]"><Printer size={18} /> พิมพ์ / PDF</button>
+
+                                            {!isEditMode && deal.quotationStatus === 'DRAFT' && !deal.quotationApproved && (
+                                                <button onClick={() => setShowDeleteDialog(true)} className="h-10 w-full flex items-center justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 px-4 py-2 rounded-lg transition border border-transparent hover:border-red-200 mt-2"><Trash2 size={18} /> ลบเอกสาร</button>
+                                            )}
+                                        </>
+                                    )}
+                                </>
+                            );
+                        })()}
                     </div>
                 </div>
             </div>

@@ -1,11 +1,38 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { motion } from 'framer-motion';
-import { Contact, Plus, Search, Edit2, Trash2, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+    Contact,
+    Plus,
+    Search,
+    Edit2,
+    Trash2,
+    Loader2,
+    GripVertical,
+    X,
+    Filter
+} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import Modal from '@/components/ui/Modal';
+import { ColumnDef } from '@/types/table';
+import { ColumnHeader } from '@/components/ui/ColumnHeader';
+import {
+    DndContext,
+    closestCorners,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent,
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 
 interface ContactType {
     id: string;
@@ -24,16 +51,109 @@ interface ContactType {
     _count?: { deals: number; activities: number };
 }
 
+const DEFAULT_COLUMNS: ColumnDef[] = [
+    { id: 'name', label: 'Name', width: '1.5fr', minWidth: 200, visible: true, filterValue: '' },
+    { id: 'email', label: 'Email', width: '1.5fr', minWidth: 150, visible: true, filterValue: '' },
+    { id: 'phone', label: 'Phone', width: '1fr', minWidth: 120, visible: true, filterValue: '' },
+    { id: 'company', label: 'Company', width: '1.2fr', minWidth: 150, visible: true, filterValue: '' },
+    { id: 'location', label: 'Location', width: '1fr', minWidth: 120, visible: true, filterValue: '' },
+    { id: 'stats', label: 'Stats', width: 100, minWidth: 80, visible: true, filterValue: '' },
+    { id: 'owner', label: 'Owner', width: 100, minWidth: 80, visible: true, filterValue: '' },
+];
+
 export default function ContactsPage() {
     const { token } = useAuth();
     const [contacts, setContacts] = useState<ContactType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
+    const [columns, setColumns] = useState<ColumnDef[]>(DEFAULT_COLUMNS);
+    const [isInitialized, setIsInitialized] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [selectedContact, setSelectedContact] = useState<ContactType | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // --- Persistence ---
+    useEffect(() => {
+        const saved = localStorage.getItem('crm_contacts_columns_v1');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                const merged = DEFAULT_COLUMNS.map(col => {
+                    const existing = parsed.find((p: any) => p.id === col.id);
+                    return existing ? { ...col, ...existing, filterValue: '' } : col;
+                });
+                setColumns(merged);
+            } catch (e) {
+                console.error('Failed to parse columns', e);
+            }
+        }
+        setIsInitialized(true);
+    }, []);
+
+    useEffect(() => {
+        if (isInitialized) {
+            localStorage.setItem('crm_contacts_columns_v1', JSON.stringify(columns.map(({ id, width, visible }) => ({ id, width, visible }))));
+        }
+    }, [columns, isInitialized]);
+
+    // --- Sensors ---
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    );
+
+    const handleColumnMove = (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (over && active.id !== over.id) {
+            setColumns((items) => {
+                const oldIndex = items.findIndex((i) => i.id === active.id);
+                const newIndex = items.findIndex((i) => i.id === over.id);
+                return arrayMove(items, oldIndex, newIndex);
+            });
+        }
+    };
+
+    const handleResize = (id: string, width: number) => {
+        setColumns(prev => prev.map(col => col.id === id ? { ...col, width } : col));
+    };
+
+    const handleFilterChange = (id: string, value: string) => {
+        setColumns(prev => prev.map(col => col.id === id ? { ...col, filterValue: value } : col));
+    };
+
+    const gridTemplateColumns = useMemo(() => {
+        const cols = columns.filter(c => c.visible).map(c =>
+            typeof c.width === 'number' ? `${c.width}px` : c.width
+        );
+        return `40px ${cols.join(' ')}`;
+    }, [columns]);
+
+    const filteredContacts = useMemo(() => {
+        return contacts.filter(contact => {
+            return columns.every(col => {
+                if (!col.filterValue) return true;
+                const val = col.filterValue.toLowerCase();
+
+                switch (col.id) {
+                    case 'name':
+                        return `${contact.firstName} ${contact.lastName}`.toLowerCase().includes(val);
+                    case 'email':
+                        return contact.email.toLowerCase().includes(val);
+                    case 'phone':
+                        return (contact.phone || '').toLowerCase().includes(val);
+                    case 'company':
+                        return `${contact.company || ''} ${contact.jobTitle || ''}`.toLowerCase().includes(val);
+                    case 'location':
+                        return `${contact.city || ''} ${contact.country || ''}`.toLowerCase().includes(val);
+                    case 'owner':
+                        return (contact as any).owner?.name?.toLowerCase().includes(val);
+                    default:
+                        return true;
+                }
+            });
+        });
+    }, [contacts, columns]);
 
     const [formData, setFormData] = useState({
         firstName: '',
@@ -51,14 +171,14 @@ export default function ContactsPage() {
 
     const loadContacts = useCallback(async () => {
         try {
-            const data = await api.getContacts(token!, { search: searchQuery || undefined });
+            const data = await api.getContacts(token!);
             setContacts(data);
         } catch (error) {
             console.error('Failed to load contacts:', error);
         } finally {
             setIsLoading(false);
         }
-    }, [token, searchQuery]);
+    }, [token]);
 
     useEffect(() => {
         if (token) loadContacts();
@@ -166,7 +286,7 @@ export default function ContactsPage() {
                 <div>
                     <h1 className="text-xl font-bold tracking-tight text-[#AF52DE] flex items-center gap-2">
                         <Contact size={24} />
-                        Contacts <span className="text-gray-400 font-normal text-sm ml-2">({contacts.length})</span>
+                        Contacts <span className="text-gray-400 font-normal text-sm ml-2">({filteredContacts.length})</span>
                     </h1>
                 </div>
 
@@ -178,14 +298,13 @@ export default function ContactsPage() {
                                 accept=".csv"
                                 className="hidden"
                                 onChange={async (e) => {
+                                    // ... import logic kept same ...
                                     const file = e.target.files?.[0];
                                     if (!file) return;
-
                                     setIsLoading(true);
                                     try {
                                         const { parseCsv } = await import('@/lib/csvHelper');
                                         const data = await parseCsv(file);
-
                                         let successCount = 0;
                                         for (const item of data) {
                                             try {
@@ -201,25 +320,15 @@ export default function ContactsPage() {
                                                     country: item.country || item.Country,
                                                     notes: item.notes || item.Notes
                                                 };
-
                                                 if (contactData.email) {
                                                     await api.createContact(token!, contactData);
                                                     successCount++;
                                                 }
-                                            } catch (err) {
-                                                console.warn('Failed to import row:', item, err);
-                                            }
+                                            } catch (err) { console.warn('Failed to import row:', item, err); }
                                         }
-
                                         alert(`Successfully imported ${successCount} contacts.`);
                                         loadContacts();
-                                    } catch (error) {
-                                        console.error('Import failed:', error);
-                                        alert('Failed to import file.');
-                                    } finally {
-                                        setIsLoading(false);
-                                        e.target.value = '';
-                                    }
+                                    } catch (error) { console.error('Import failed:', error); alert('Failed to import file.'); } finally { setIsLoading(false); e.target.value = ''; }
                                 }}
                             />
                             <span>Import</span>
@@ -242,194 +351,221 @@ export default function ContactsPage() {
                                         createdAt: c.createdAt
                                     }));
                                     exportToCsv(exportData, `contacts-export-${new Date().toISOString().split('T')[0]}.csv`);
-                                } catch (error) {
-                                    console.error('Export failed:', error);
-                                }
+                                } catch (error) { console.error('Export failed:', error); }
                             }}
                             className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 rounded-md hover:bg-white transition-all"
                         >
                             Export
                         </button>
                     </div>
-                    <div className="relative">
-                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && loadContacts()}
-                            placeholder="Search contacts..."
-                            className="h-9 pl-9 pr-4 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#AF52DE]/20 w-64"
-                        />
-                    </div>
+                    <button
+                        onClick={() => { resetForm(); setShowAddModal(true); }}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-[#AF52DE] text-white text-sm font-medium rounded-lg hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#AF52DE] transition-colors"
+                    >
+                        <Plus size={16} />
+                        <span>New Contact</span>
+                    </button>
                 </div>
             </motion.div>
 
             {/* Contacts List */}
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm flex-1 flex flex-col">
-                {/* Desktop Table Header */}
-                <div className="hidden md:grid grid-cols-[40px_1.5fr_1.5fr_1fr_1.2fr_1fr_100px_100px] gap-4 px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider items-center">
-                    <div className="flex justify-center">
-                        <input type="checkbox" className="rounded border-gray-300 text-[#AF52DE] focus:ring-[#AF52DE]" />
-                    </div>
-                    <div>Name</div>
-                    <div>Email</div>
-                    <div>Phone</div>
-                    <div>Company</div>
-                    <div>Location</div>
-                    <div className="text-center">Stats</div>
-                    <div className="text-center">Owner</div>
-                </div>
-
-                {/* List Body */}
-                <div className="overflow-y-auto flex-1">
-                    {contacts.length === 0 ? (
-                        <div className="text-center py-16 text-gray-400">
-                            <Contact size={48} className="mx-auto mb-4 opacity-50" />
-                            <p className="text-lg font-medium text-gray-500">No contacts found</p>
-                            <p className="text-sm mt-1">Start by adding your first contact</p>
-                        </div>
-                    ) : (
-                        contacts.map((contact, index) => (
-                            <div key={contact.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-                                {/* Desktop Row */}
-                                <div className="hidden md:grid group grid-cols-[40px_1.5fr_1.5fr_1fr_1.2fr_1fr_100px_100px] gap-4 px-4 py-3 items-center text-sm">
-                                    <div className="flex justify-center">
+            <div className="bg-white border border-gray-200 rounded-lg shadow-sm flex-1 flex flex-col relative overflow-hidden">
+                <div className="overflow-x-auto flex-1 flex flex-col min-w-full">
+                    <div className="min-w-[1000px] flex flex-col flex-1">
+                        {/* Desktop Table Header */}
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCorners}
+                            onDragEnd={handleColumnMove}
+                        >
+                            <SortableContext items={columns.map(c => c.id)} strategy={verticalListSortingStrategy}>
+                                <div
+                                    className="hidden md:grid gap-0 border-b border-gray-200 bg-gray-50 items-center sticky top-0 z-20"
+                                    style={{ gridTemplateColumns }}
+                                >
+                                    <div className="flex justify-center px-4 py-3 h-full items-center border-r border-gray-200 bg-gray-50">
                                         <input type="checkbox" className="rounded border-gray-300 text-[#AF52DE] focus:ring-[#AF52DE]" />
                                     </div>
-
-                                    {/* Name & Avatar */}
-                                    <div className="flex items-center gap-3 min-w-0 pr-4">
-                                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#AF52DE] to-[#5856D6] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                                            {contact.firstName[0]}{contact.lastName[0]}
-                                        </div>
-                                        <div className="truncate">
-                                            <span className="font-medium text-gray-900 block truncate">{contact.firstName} {contact.lastName}</span>
-                                            {/* Row Actions - Visible on Hover */}
-                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); openEditModal(contact); }}
-                                                    className="p-0.5 hover:bg-gray-200 rounded text-gray-500"
-                                                    title="Edit"
-                                                >
-                                                    <Edit2 size={12} />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setSelectedContact(contact); setShowDeleteModal(true); }}
-                                                    className="p-0.5 hover:bg-red-50 rounded text-red-500"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 size={12} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Email */}
-                                    <div className="truncate text-gray-600">
-                                        {contact.email}
-                                    </div>
-
-                                    {/* Phone */}
-                                    <div className="truncate text-gray-600">
-                                        {contact.phone || '-'}
-                                    </div>
-
-                                    {/* Company */}
-                                    <div className="truncate">
-                                        <div className="text-gray-900 truncate">{contact.company || '-'}</div>
-                                        <div className="text-xs text-gray-500 truncate">{contact.jobTitle || '-'}</div>
-                                    </div>
-
-                                    {/* Location */}
-                                    <div className="truncate text-gray-500">
-                                        {[contact.city, contact.country].filter(Boolean).join(', ') || '-'}
-                                    </div>
-
-                                    {/* Stats */}
-                                    <div className="text-center text-xs text-gray-400">
-                                        {contact._count ? (
-                                            <div className="flex flex-col gap-0.5">
-                                                <span>{contact._count.deals} deals</span>
-                                                <span>{contact._count.activities} acts</span>
-                                            </div>
-                                        ) : (
-                                            '-'
-                                        )}
-                                    </div>
-
-                                    {/* Owner */}
-                                    <div className="flex justify-center">
-                                        <div
-                                            className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
-                                            style={{
-                                                backgroundColor: (contact as any).owner?.name
-                                                    ? `hsl(${(contact as any).owner.name.charCodeAt(0) * 7 % 360}, 60%, 50%)`
-                                                    : '#6B7280'
-                                            }}
-                                            title={(contact as any).owner?.name || 'Unknown'}
-                                        >
-                                            {(contact as any).owner?.name
-                                                ? (contact as any).owner.name.substring(0, 2).toUpperCase()
-                                                : 'NA'}
-                                        </div>
-                                    </div>
+                                    {columns.filter(c => c.visible).map((col, idx) => (
+                                        <ColumnHeader
+                                            key={col.id}
+                                            column={col}
+                                            onResize={handleResize}
+                                            onFilterChange={handleFilterChange}
+                                            index={idx}
+                                        />
+                                    ))}
                                 </div>
+                            </SortableContext>
+                        </DndContext>
 
-                                {/* Mobile Card View */}
-                                <div className="md:hidden p-4 space-y-3">
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#AF52DE] to-[#5856D6] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                                                {contact.firstName[0]}{contact.lastName[0]}
+                        {/* List Body */}
+                        <div className="overflow-y-auto flex-1 bg-white">
+                            {filteredContacts.length > 0 ? filteredContacts.map((contact) => (
+                                <div key={contact.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+                                    {/* Desktop Row */}
+                                    <div
+                                        className="hidden md:grid group gap-0 items-center text-sm"
+                                        style={{ gridTemplateColumns }}
+                                    >
+                                        <div className="flex justify-center border-r border-gray-100/50 h-full items-center">
+                                            <input type="checkbox" className="rounded border-gray-300 text-[#AF52DE] focus:ring-[#AF52DE]" />
+                                        </div>
+
+                                        {columns.filter(c => c.visible).map(col => {
+                                            switch (col.id) {
+                                                case 'name':
+                                                    return (
+                                                        <div key={col.id} className="px-4 py-3 flex items-center gap-3 min-w-0 border-r border-gray-100/50 h-full">
+                                                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#AF52DE] to-[#5856D6] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                                                {contact.firstName[0]}{contact.lastName[0]}
+                                                            </div>
+                                                            <div className="truncate">
+                                                                <span className="font-medium text-gray-900 block truncate">{contact.firstName} {contact.lastName}</span>
+                                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); openEditModal(contact); }}
+                                                                        className="p-0.5 hover:bg-gray-200 rounded text-gray-500"
+                                                                        title="Edit"
+                                                                    >
+                                                                        <Edit2 size={12} />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); setSelectedContact(contact); setShowDeleteModal(true); }}
+                                                                        className="p-0.5 hover:bg-red-50 rounded text-red-500"
+                                                                        title="Delete"
+                                                                    >
+                                                                        <Trash2 size={12} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                case 'email':
+                                                    return (
+                                                        <div key={col.id} className="px-4 py-3 border-r border-gray-100/50 h-full flex items-center truncate text-gray-600">
+                                                            {contact.email}
+                                                        </div>
+                                                    );
+                                                case 'phone':
+                                                    return (
+                                                        <div key={col.id} className="px-4 py-3 border-r border-gray-100/50 h-full flex items-center truncate text-gray-600">
+                                                            {contact.phone || '-'}
+                                                        </div>
+                                                    );
+                                                case 'company':
+                                                    return (
+                                                        <div key={col.id} className="px-4 py-3 border-r border-gray-100/50 h-full flex flex-col justify-center truncate">
+                                                            <div className="text-gray-900 truncate">{contact.company || '-'}</div>
+                                                            <div className="text-xs text-gray-500 truncate">{contact.jobTitle || '-'}</div>
+                                                        </div>
+                                                    );
+                                                case 'location':
+                                                    return (
+                                                        <div key={col.id} className="px-4 py-3 border-r border-gray-100/50 h-full flex items-center truncate text-gray-500">
+                                                            {[contact.city, contact.country].filter(Boolean).join(', ') || '-'}
+                                                        </div>
+                                                    );
+                                                case 'stats':
+                                                    return (
+                                                        <div key={col.id} className="px-4 py-3 border-r border-gray-100/50 h-full flex flex-col justify-center text-center text-xs text-gray-400">
+                                                            {contact._count ? (
+                                                                <>
+                                                                    <span>{contact._count.deals} deals</span>
+                                                                    <span>{contact._count.activities} acts</span>
+                                                                </>
+                                                            ) : '-'}
+                                                        </div>
+                                                    );
+                                                case 'owner':
+                                                    return (
+                                                        <div key={col.id} className="px-4 py-3 h-full flex items-center justify-center">
+                                                            <div
+                                                                className="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                                                                style={{
+                                                                    backgroundColor: (contact as any).owner?.name
+                                                                        ? `hsl(${(contact as any).owner.name.charCodeAt(0) * 7 % 360}, 60%, 50%)`
+                                                                        : '#6B7280'
+                                                                }}
+                                                                title={(contact as any).owner?.name || 'Unknown'}
+                                                            >
+                                                                {(contact as any).owner?.name
+                                                                    ? (contact as any).owner.name.substring(0, 2).toUpperCase()
+                                                                    : 'NA'}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                default:
+                                                    return null;
+                                            }
+                                        })}
+                                    </div>
+
+                                    {/* Mobile Card View */}
+                                    <div className="md:hidden p-4 space-y-3">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#AF52DE] to-[#5856D6] flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                                                    {contact.firstName[0]}{contact.lastName[0]}
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-medium text-gray-900">{contact.firstName} {contact.lastName}</h3>
+                                                    <p className="text-xs text-gray-500">{contact.company || 'No Company'}</p>
+                                                </div>
                                             </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-1 text-sm text-gray-600">
+                                            <div className="truncate">📧 {contact.email}</div>
+                                            {contact.phone && <div className="truncate">📞 {contact.phone}</div>}
+                                        </div>
+
+                                        <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-100">
                                             <div>
-                                                <h3 className="font-medium text-gray-900">{contact.firstName} {contact.lastName}</h3>
-                                                <p className="text-xs text-gray-500">{contact.company || 'No Company'}</p>
+                                                {[contact.city, contact.country].filter(Boolean).join(', ') || 'No Location'}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => openEditModal(contact)}
+                                                    className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => { setSelectedContact(contact); setShowDeleteModal(true); }}
+                                                    className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg"
+                                                >
+                                                    Delete
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
-
-                                    <div className="grid grid-cols-1 gap-1 text-sm text-gray-600">
-                                        <div className="truncate">📧 {contact.email}</div>
-                                        {contact.phone && <div className="truncate">📞 {contact.phone}</div>}
-                                    </div>
-
-                                    <div className="flex items-center justify-between text-xs text-gray-400 pt-2 border-t border-gray-100">
-                                        <div>
-                                            {[contact.city, contact.country].filter(Boolean).join(', ') || 'No Location'}
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => openEditModal(contact)}
-                                                className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg"
-                                            >
-                                                Edit
-                                            </button>
-                                            <button
-                                                onClick={() => { setSelectedContact(contact); setShowDeleteModal(true); }}
-                                                className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg"
-                                            >
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </div>
                                 </div>
-                            </div>
-                        ))
-                    )}
+                            )) : (
+                                <div className="text-center py-16 text-gray-400">
+                                    <Search size={48} className="mx-auto mb-4 opacity-50" />
+                                    <p className="text-lg font-medium text-gray-500">No contacts found matching your criteria</p>
+                                    <button
+                                        onClick={() => setColumns(prev => prev.map(c => ({ ...c, filterValue: '' })))}
+                                        className="mt-4 text-[#AF52DE] text-sm font-black hover:underline"
+                                    >
+                                        Clear all filters
+                                    </button>
+                                </div>
+                            )}
 
-                    {/* Add Contact Row */}
-                    <button
-                        onClick={() => { resetForm(); setShowAddModal(true); }}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-500 hover:bg-gray-50 hover:text-[#AF52DE] transition-colors border-b border-gray-100 text-left"
-                    >
-                        <div className="w-10 flex justify-center">
-                            <div className="w-4 h-4 rounded border border-gray-300 bg-white" />
+                            {/* Add Contact Row */}
+                            <button
+                                onClick={() => { resetForm(); setShowAddModal(true); }}
+                                className="w-full flex items-center gap-3 px-4 py-4 text-sm text-gray-500 hover:bg-gray-50 hover:text-[#AF52DE] transition-colors border-b border-gray-100 text-left"
+                            >
+                                <div className="w-10 flex justify-center">
+                                    <Plus size={18} strokeWidth={3} />
+                                </div>
+                                <span className="font-black uppercase tracking-widest text-[11px]">Add new contact</span>
+                            </button>
                         </div>
-                        <Plus size={16} />
-                        <span className="font-medium">Add new contact</span>
-                    </button>
+                    </div>
                 </div>
             </div>
 
