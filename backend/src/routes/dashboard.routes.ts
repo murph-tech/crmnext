@@ -28,6 +28,11 @@ const getStartDate = (timeframe: string = 'week'): Date => {
 
 const parseDate = (value?: string): Date | undefined => {
     if (!value) return undefined;
+    // Check if YYYY-MM-DD format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        const [y, m, d] = value.split('-').map(Number);
+        return new Date(y, m - 1, d); // Local time construction
+    }
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return undefined;
     return d;
@@ -59,7 +64,14 @@ const getRangeFromQuery = (reqQuery: any): { start: Date; end: Date; timeframe?:
     }
 
     const start = getStartDate(timeframe);
-    const end = new Date();
+    let end = new Date();
+
+    if (timeframe === 'month') {
+        const now = new Date();
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        end.setHours(23, 59, 59, 999);
+    }
+
     return { start, end, timeframe };
 };
 
@@ -298,6 +310,10 @@ router.get('/reminders', async (req: AuthRequest, res, next) => {
 // Get sales performance (Admin & Manager)
 router.get('/sales-performance', authorize('ADMIN', 'MANAGER'), async (req: AuthRequest, res, next) => {
     try {
+        const range = getRangeFromQuery(req.query);
+        if ('error' in range) return res.status(400).json({ error: range.error });
+        const { start: startDate, end: endDate } = range;
+
         const users = await prisma.user.findMany({
             select: {
                 id: true,
@@ -310,9 +326,25 @@ router.get('/sales-performance', authorize('ADMIN', 'MANAGER'), async (req: Auth
         const performance = await Promise.all(
             users.map(async (user) => {
                 const [deals, contacts, leads] = await Promise.all([
-                    prisma.deal.count({ where: { ownerId: user.id, stage: 'CLOSED_WON' } }),
-                    prisma.contact.count({ where: { ownerId: user.id } }),
-                    prisma.lead.count({ where: { ownerId: user.id } }),
+                    prisma.deal.count({
+                        where: {
+                            ownerId: user.id,
+                            stage: 'CLOSED_WON',
+                            closedAt: { gte: startDate, lte: endDate }
+                        }
+                    }),
+                    prisma.contact.count({
+                        where: {
+                            ownerId: user.id,
+                            createdAt: { gte: startDate, lte: endDate }
+                        }
+                    }),
+                    prisma.lead.count({
+                        where: {
+                            ownerId: user.id,
+                            createdAt: { gte: startDate, lte: endDate }
+                        }
+                    }),
                 ]);
 
                 return {

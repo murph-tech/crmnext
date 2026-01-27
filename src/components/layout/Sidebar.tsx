@@ -17,12 +17,15 @@ import {
   Building2,
   Activity,
   BarChart3,
+  Plug,
+  Truck,
 } from 'lucide-react';
 
 interface NavItem {
   icon: React.ElementType;
   label: string;
   href: string;
+  roles?: string[];
 }
 
 const navItems: NavItem[] = [
@@ -31,9 +34,12 @@ const navItems: NavItem[] = [
   { icon: Briefcase, label: 'การขาย', href: '/pipeline' },
   { icon: Building2, label: 'บัญชีลูกค้า', href: '/customer-accounts' },
   { icon: UserCircle, label: 'รายชื่อติดต่อ', href: '/contacts' },
-  { icon: CalendarDays, label: 'ปฏิทิน', href: '/calendar' },
-  { icon: Activity, label: 'กิจกรรม', href: '/activities' },
+  { icon: Truck, label: 'คู่ค้าและพันธมิตร', href: '/vendors' },
   { icon: Box, label: 'สินค้า', href: '/products' },
+  { icon: Activity, label: 'กิจกรรม', href: '/activities' },
+  { icon: CalendarDays, label: 'ปฏิทิน', href: '/calendar' },
+  { icon: Plug, label: 'การเชื่อมต่อ', href: '/settings/integrations' },
+  { icon: BarChart3, label: 'ประสิทธิภาพทีมขาย', href: '/team-performance', roles: ['ADMIN', 'MANAGER'] },
   { icon: Settings2, label: 'ตั้งค่า', href: '/settings' },
 ];
 
@@ -139,125 +145,75 @@ export default function Sidebar({ isCollapsed, onToggle, isMobile, isOpen, onClo
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3">
         <ul className="space-y-1">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            const Icon = item.icon;
+          {navItems
+            .filter(item => !item.roles || (user?.role && item.roles.includes(user.role)))
+            .map((item) => {
+              const isActive = item.href === '/'
+                ? pathname === '/'
+                : pathname.startsWith(item.href);
+              const Icon = item.icon;
 
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  onMouseEnter={() => setHoveredItem(item.href)}
-                  onMouseLeave={() => setHoveredItem(null)}
-                  className={`
-                    relative flex items-center gap-3 px-3 py-2.5 rounded-xl
-                    transition-all duration-200 ease-out
-                    ${isActive
-                      ? 'nav-item-active font-medium'
-                      : 'text-gray-600 hover:bg-black/[0.04]'
-                    }
-                  `}
-                >
-                  {/* ... existing hover code ... */}
-                  {hoveredItem === item.href && !isActive && (
-                    <motion.div
-                      layoutId="hoverBg"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.15 }}
-                      className="absolute inset-0 bg-black/[0.04] rounded-xl -z-10"
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onMouseEnter={() => setHoveredItem(item.href)}
+                    onMouseLeave={() => setHoveredItem(null)}
+                    className={`
+                      relative flex items-center gap-3 px-3 py-2.5 rounded-xl
+                      transition-all duration-200 ease-out
+                      ${isActive
+                        ? 'nav-item-active font-medium'
+                        : 'text-gray-600 hover:bg-black/[0.04]'
+                      }
+                    `}
+                  >
+                    {hoveredItem === item.href && !isActive && (
+                      <motion.div
+                        layoutId="hoverBg"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute inset-0 bg-black/[0.04] rounded-xl -z-10"
+                      />
+                    )}
+
+                    <Icon
+                      size={20}
+                      strokeWidth={2.2}
+                      className={`flex-shrink-0 transition-colors duration-200 ${isActive ? 'text-[#007AFF]' : ''
+                        }`}
                     />
-                  )}
 
-                  <Icon
-                    size={20}
-                    strokeWidth={2.2}
-                    className={`flex-shrink-0 transition-colors duration-200 ${isActive ? 'text-[#007AFF]' : ''
-                      }`}
-                  />
+                    <AnimatePresence>
+                      {!isCollapsed && (
+                        <motion.span
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -10 }}
+                          transition={{ duration: 0.2 }}
+                          className="whitespace-nowrap"
+                        >
+                          {item.label}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
 
-                  <AnimatePresence>
-                    {!isCollapsed && (
-                      <motion.span
-                        initial={{ opacity: 0, x: -10 }}
+                    {/* Tooltip for collapsed state */}
+                    {isCollapsed && hoveredItem === item.href && (
+                      <motion.div
+                        initial={{ opacity: 0, x: -8 }}
                         animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -10 }}
-                        transition={{ duration: 0.2 }}
-                        className="whitespace-nowrap"
+                        className="absolute left-full ml-2 px-3 py-1.5 bg-gray-800 text-white text-sm rounded-lg whitespace-nowrap z-50 shadow-lg"
                       >
                         {item.label}
-                      </motion.span>
+                      </motion.div>
                     )}
-                  </AnimatePresence>
-
-                  {/* Tooltip for collapsed state */}
-                  {isCollapsed && hoveredItem === item.href && (
-                    <motion.div
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className="absolute left-full ml-2 px-3 py-1.5 bg-gray-800 text-white text-sm rounded-lg whitespace-nowrap z-50 shadow-lg"
-                    >
-                      {item.label}
-                    </motion.div>
-                  )}
-                </Link>
-              </li>
-            );
-          })}
-
-          {/* Admin & Manager: Sales Performance */}
-          {(user?.role === 'ADMIN' || user?.role === 'MANAGER') && (
-            <li>
-              <Link
-                href="/team-performance"
-                onMouseEnter={() => setHoveredItem('/team-performance')}
-                onMouseLeave={() => setHoveredItem(null)}
-                className={`
-                  relative flex items-center gap-3 px-3 py-2.5 rounded-xl
-                  transition-all duration-200 ease-out
-                  ${pathname === '/team-performance'
-                    ? 'nav-item-active font-medium'
-                    : 'text-gray-600 hover:bg-black/[0.04]'
-                  }
-                `}
-              >
-                {hoveredItem === '/team-performance' && pathname !== '/team-performance' && (
-                  <motion.div
-                    layoutId="hoverBg"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute inset-0 bg-black/[0.04] rounded-xl -z-10"
-                  />
-                )}
-                <BarChart3 size={20} strokeWidth={2.2} className={`flex-shrink-0 transition-colors duration-200 ${pathname === '/team-performance' ? 'text-[#007AFF]' : ''}`} />
-                <AnimatePresence>
-                  {!isCollapsed && (
-                    <motion.span
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -10 }}
-                      transition={{ duration: 0.2 }}
-                      className="whitespace-nowrap"
-                    >
-                      ประสิทธิภาพทีมขาย
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-                {isCollapsed && hoveredItem === '/team-performance' && (
-                  <motion.div
-                    initial={{ opacity: 0, x: -8 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="absolute left-full ml-2 px-3 py-1.5 bg-gray-800 text-white text-sm rounded-lg whitespace-nowrap z-50 shadow-lg"
-                  >
-                    ประสิทธิภาพทีมขาย
-                  </motion.div>
-                )}
-              </Link>
-            </li>
-          )}
+                  </Link>
+                </li>
+              );
+            })}
         </ul>
       </nav>
 

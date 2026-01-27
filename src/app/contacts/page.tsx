@@ -47,12 +47,14 @@ interface ContactType {
     city?: string;
     country?: string;
     notes?: string;
+    type?: 'CUSTOMER' | 'VENDOR' | 'PARTNER' | 'OTHER';
     createdAt: string;
     _count?: { deals: number; activities: number };
 }
 
 const DEFAULT_COLUMNS: ColumnDef[] = [
     { id: 'name', label: 'Name', width: '1.5fr', minWidth: 200, visible: true, filterValue: '' },
+    { id: 'type', label: 'Role', width: 100, minWidth: 100, visible: true, filterValue: '' },
     { id: 'email', label: 'Email', width: '1.5fr', minWidth: 150, visible: true, filterValue: '' },
     { id: 'phone', label: 'Phone', width: '1fr', minWidth: 120, visible: true, filterValue: '' },
     { id: 'company', label: 'Company', width: '1.2fr', minWidth: 150, visible: true, filterValue: '' },
@@ -75,7 +77,7 @@ export default function ContactsPage() {
 
     // --- Persistence ---
     useEffect(() => {
-        const saved = localStorage.getItem('crm_contacts_columns_v1');
+        const saved = localStorage.getItem('crm_contacts_columns_v2'); // Increment version
         if (saved) {
             try {
                 const parsed = JSON.parse(saved);
@@ -93,7 +95,7 @@ export default function ContactsPage() {
 
     useEffect(() => {
         if (isInitialized) {
-            localStorage.setItem('crm_contacts_columns_v1', JSON.stringify(columns.map(({ id, width, visible }) => ({ id, width, visible }))));
+            localStorage.setItem('crm_contacts_columns_v2', JSON.stringify(columns.map(({ id, width, visible }) => ({ id, width, visible }))));
         }
     }, [columns, isInitialized]);
 
@@ -138,6 +140,8 @@ export default function ContactsPage() {
                 switch (col.id) {
                     case 'name':
                         return `${contact.firstName} ${contact.lastName}`.toLowerCase().includes(val);
+                    case 'type':
+                        return (contact.type || '').toLowerCase().includes(val);
                     case 'email':
                         return contact.email.toLowerCase().includes(val);
                     case 'phone':
@@ -167,6 +171,7 @@ export default function ContactsPage() {
         city: '',
         country: '',
         notes: '',
+        type: 'CUSTOMER', // Default
     });
 
     const loadContacts = useCallback(async () => {
@@ -197,6 +202,7 @@ export default function ContactsPage() {
             city: '',
             country: '',
             notes: '',
+            type: 'CUSTOMER',
         });
     };
 
@@ -261,6 +267,7 @@ export default function ContactsPage() {
             city: contact.city || '',
             country: contact.country || '',
             notes: contact.notes || '',
+            type: contact.type || 'CUSTOMER',
         });
         setShowEditModal(true);
     };
@@ -318,7 +325,8 @@ export default function ContactsPage() {
                                                     address: item.address || item.Address,
                                                     city: item.city || item.City,
                                                     country: item.country || item.Country,
-                                                    notes: item.notes || item.Notes
+                                                    notes: item.notes || item.Notes,
+                                                    type: 'CUSTOMER' // Default for import
                                                 };
                                                 if (contactData.email) {
                                                     await api.createContact(token!, contactData);
@@ -340,6 +348,7 @@ export default function ContactsPage() {
                                     const exportData = contacts.map(c => ({
                                         firstName: c.firstName,
                                         lastName: c.lastName,
+                                        type: c.type || 'CUSTOMER',
                                         email: c.email,
                                         phone: c.phone,
                                         company: c.company,
@@ -441,6 +450,18 @@ export default function ContactsPage() {
                                                             </div>
                                                         </div>
                                                     );
+                                                case 'type':
+                                                    return (
+                                                        <div key={col.id} className="px-4 py-3 border-r border-gray-100/50 h-full flex items-center">
+                                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${contact.type === 'VENDOR' ? 'bg-orange-100 text-orange-700' :
+                                                                    contact.type === 'PARTNER' ? 'bg-blue-100 text-blue-700' :
+                                                                        contact.type === 'OTHER' ? 'bg-gray-100 text-gray-700' :
+                                                                            'bg-green-100 text-green-700'
+                                                                }`}>
+                                                                {contact.type || 'CUSTOMER'}
+                                                            </span>
+                                                        </div>
+                                                    );
                                                 case 'email':
                                                     return (
                                                         <div key={col.id} className="px-4 py-3 border-r border-gray-100/50 h-full flex items-center truncate text-gray-600">
@@ -510,7 +531,16 @@ export default function ContactsPage() {
                                                 </div>
                                                 <div>
                                                     <h3 className="font-medium text-gray-900">{contact.firstName} {contact.lastName}</h3>
-                                                    <p className="text-xs text-gray-500">{contact.company || 'No Company'}</p>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${contact.type === 'VENDOR' ? 'bg-orange-100 text-orange-700' :
+                                                                contact.type === 'PARTNER' ? 'bg-blue-100 text-blue-700' :
+                                                                    contact.type === 'OTHER' ? 'bg-gray-100 text-gray-700' :
+                                                                        'bg-green-100 text-green-700'
+                                                            }`}>
+                                                            {contact.type || 'CUSTOMER'}
+                                                        </span>
+                                                        <span className="text-xs text-gray-500 truncate max-w-[120px]">{contact.company || 'No Company'}</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -585,8 +615,8 @@ export default function ContactsPage() {
                     formData={formData}
                     setFormData={setFormData}
                     onSubmit={handleEditContact}
-                    isEdit
                     isSubmitting={isSubmitting}
+                    isEdit
                     onCancel={() => { setShowEditModal(false); resetForm(); }}
                 />
             </Modal>
@@ -639,143 +669,213 @@ const ContactForm = ({
     isSubmitting: boolean;
     onCancel: () => void;
 }) => (
-    <form onSubmit={onSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">First Name *</label>
-                <input
-                    type="text"
-                    value={formData.firstName}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                    className="w-full h-10 px-3 rounded-xl spotlight-input text-sm"
-                    required
-                />
+    <form onSubmit={onSubmit} className="space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left Column: Personal Information */}
+            <div className="space-y-6">
+                <div className="flex items-center gap-2 text-[#AF52DE] mb-2">
+                    <Search className="w-4 h-4" />
+                    <h3 className="text-sm font-semibold uppercase tracking-wider">Contact Details</h3>
+                </div>
+
+                <div className="space-y-4">
+                    {/* Role Selection */}
+                    <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase mb-2 ml-1">Type *</label>
+                        <div className="grid grid-cols-4 gap-2">
+                            {['CUSTOMER', 'VENDOR', 'PARTNER', 'OTHER'].map((type) => (
+                                <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => setFormData({ ...formData, type })}
+                                    className={`px-3 py-2 text-xs font-bold rounded-xl border transition-all ${formData.type === type
+                                            ? type === 'VENDOR' ? 'bg-orange-100 border-orange-200 text-orange-700'
+                                                : type === 'PARTNER' ? 'bg-blue-100 border-blue-200 text-blue-700'
+                                                    : type === 'OTHER' ? 'bg-gray-100 border-gray-200 text-gray-700'
+                                                        : 'bg-green-100 border-green-200 text-green-700'
+                                            : 'bg-white border-gray-200 text-gray-500 hover:border-[#AF52DE]/30'
+                                        }`}
+                                >
+                                    {type}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5 ml-1">First Name *</label>
+                            <input
+                                type="text"
+                                value={formData.firstName}
+                                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                                className="w-full h-11 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#AF52DE] focus:bg-white focus:border-transparent transition-all text-sm outline-none"
+                                placeholder="ชื่อ"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5 ml-1">Last Name *</label>
+                            <input
+                                type="text"
+                                value={formData.lastName}
+                                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                                className="w-full h-11 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#AF52DE] focus:bg-white focus:border-transparent transition-all text-sm outline-none"
+                                placeholder="นามสกุล"
+                                required
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5 ml-1 flex items-center gap-1 text-[#AF52DE]">
+                            Email *
+                        </label>
+                        <input
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            className="w-full h-11 px-4 bg-gray-50 border border-purple-100 rounded-xl focus:ring-2 focus:ring-[#AF52DE] focus:bg-white focus:border-transparent transition-all text-sm outline-none"
+                            placeholder="example@company.com"
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5 ml-1">Phone</label>
+                        <input
+                            type="tel"
+                            value={formData.phone}
+                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                            className="w-full h-11 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#AF52DE] focus:bg-white focus:border-transparent transition-all text-sm outline-none"
+                            placeholder="08x-xxx-xxxx"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5 ml-1">Notes</label>
+                        <textarea
+                            value={formData.notes}
+                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                            rows={3}
+                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#AF52DE] focus:bg-white focus:border-transparent transition-all text-sm outline-none resize-none"
+                            placeholder="ข้อมูลเพิ่มเติม..."
+                        />
+                    </div>
+                </div>
             </div>
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Last Name *</label>
-                <input
-                    type="text"
-                    value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                    className="w-full h-10 px-3 rounded-xl spotlight-input text-sm"
-                    required
-                />
+
+            {/* Right Column: Work & Location */}
+            <div className="space-y-6">
+                <div className="flex items-center gap-2 text-[#5856D6] mb-2">
+                    <Filter className="w-4 h-4" />
+                    <h3 className="text-sm font-semibold uppercase tracking-wider">Work & Location</h3>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-2 sm:col-span-1">
+                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5 ml-1">Company</label>
+                            <input
+                                type="text"
+                                value={formData.company}
+                                onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                                className="w-full h-11 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#5856D6] focus:bg-white focus:border-transparent transition-all text-sm outline-none"
+                                placeholder="ชื่อบริษัท"
+                            />
+                        </div>
+                        <div className="col-span-2 sm:col-span-1">
+                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5 ml-1">Job Title</label>
+                            <input
+                                type="text"
+                                value={formData.jobTitle}
+                                onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
+                                className="w-full h-11 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#5856D6] focus:bg-white focus:border-transparent transition-all text-sm outline-none"
+                                placeholder="ตำแหน่งงาน"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="bg-[#5856D6]/5 p-5 rounded-2xl border border-[#5856D6]/10">
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-[#5856D6] uppercase mb-1.5 ml-1">Tax ID</label>
+                                <input
+                                    type="text"
+                                    value={formData.taxId}
+                                    onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
+                                    className="w-full h-11 px-4 bg-white border border-[#5856D6]/20 rounded-xl focus:ring-2 focus:ring-[#5856D6] transition-all text-sm outline-none"
+                                    placeholder="เลขประจำตัวผู้เสียภาษี"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-[#5856D6] uppercase mb-1.5 ml-1">Address</label>
+                                <textarea
+                                    value={formData.address}
+                                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                                    rows={2}
+                                    className="w-full px-4 py-3 bg-white border border-[#5856D6]/20 rounded-xl focus:ring-2 focus:ring-[#5856D6] transition-all text-sm outline-none resize-none"
+                                    placeholder="ที่อยู่..."
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-[#5856D6] uppercase mb-1.5 ml-1">City</label>
+                                    <input
+                                        type="text"
+                                        value={formData.city}
+                                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                                        className="w-full h-11 px-4 bg-white border border-[#5856D6]/20 rounded-xl focus:ring-2 focus:ring-[#5856D6] transition-all text-sm outline-none"
+                                        placeholder="จังหวัด"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-[#5856D6] uppercase mb-1.5 ml-1">Country</label>
+                                    <input
+                                        type="text"
+                                        value={formData.country}
+                                        onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                                        className="w-full h-11 px-4 bg-white border border-[#5856D6]/20 rounded-xl focus:ring-2 focus:ring-[#5856D6] transition-all text-sm outline-none"
+                                        placeholder="ประเทศ"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Email *</label>
-            <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full h-10 px-3 rounded-xl spotlight-input text-sm"
-                required
-            />
-        </div>
-
-        <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
-            <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                className="w-full h-10 px-3 rounded-xl spotlight-input text-sm"
-            />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Company</label>
-                <input
-                    type="text"
-                    value={formData.company}
-                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                    className="w-full h-10 px-3 rounded-xl spotlight-input text-sm"
-                />
+        {/* Footer Actions */}
+        <div className="flex items-center justify-between pt-6 border-t border-gray-100">
+            <p className="text-xs text-gray-400">
+                <span className="text-red-500">*</span> Required fields
+            </p>
+            <div className="flex gap-3">
+                <button
+                    type="button"
+                    onClick={onCancel}
+                    className="px-6 py-2.5 text-sm font-semibold text-gray-500 hover:bg-gray-100 rounded-xl transition-all"
+                >
+                    Cancel
+                </button>
+                <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-2 px-8 py-2.5 bg-gradient-to-r from-[#AF52DE] to-[#5856D6] text-white font-bold rounded-xl shadow-lg shadow-purple-500/25 hover:from-[#9437C0] hover:to-[#AF52DE] transition-all active:scale-95 disabled:opacity-50"
+                >
+                    {isSubmitting ? (
+                        <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                        <>
+                            <Plus size={18} />
+                            <span>{isEdit ? 'Save Changes' : 'Add Contact'}</span>
+                        </>
+                    )}
+                </motion.button>
             </div>
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Job Title</label>
-                <input
-                    type="text"
-                    value={formData.jobTitle}
-                    onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
-                    className="w-full h-10 px-3 rounded-xl spotlight-input text-sm"
-                />
-            </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Tax ID</label>
-                <input
-                    type="text"
-                    value={formData.taxId}
-                    onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
-                    className="w-full h-10 px-3 rounded-xl spotlight-input text-sm"
-                    placeholder="เลขประจำตัวผู้เสียภาษี"
-                />
-            </div>
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Address</label>
-                <input
-                    type="text"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full h-10 px-3 rounded-xl spotlight-input text-sm"
-                    placeholder="ที่อยู่"
-                />
-            </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">City</label>
-                <input
-                    type="text"
-                    value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    className="w-full h-10 px-3 rounded-xl spotlight-input text-sm"
-                />
-            </div>
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Country</label>
-                <input
-                    type="text"
-                    value={formData.country}
-                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                    className="w-full h-10 px-3 rounded-xl spotlight-input text-sm"
-                />
-            </div>
-        </div>
-
-        <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes</label>
-            <textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                className="w-full h-24 px-3 py-2 rounded-xl spotlight-input text-sm resize-none"
-            />
-        </div>
-
-        <div className="flex justify-end gap-3 pt-4">
-            <button
-                type="button"
-                onClick={onCancel}
-                className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
-            >
-                Cancel
-            </button>
-            <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                type="submit"
-                disabled={isSubmitting}
-                className="px-4 py-2.5 bg-[#007AFF] text-white text-sm font-medium rounded-xl shadow-lg shadow-blue-500/20 disabled:opacity-50 flex items-center gap-2"
-            >
-                {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-                {isEdit ? 'Save Changes' : 'Add Contact'}
-            </motion.button>
         </div>
     </form>
 );

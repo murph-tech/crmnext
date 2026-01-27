@@ -80,6 +80,7 @@ export default function ActivitiesPage() {
     const [columns, setColumns] = useState<ColumnDef[]>(DEFAULT_COLUMNS);
     const [isInitialized, setIsInitialized] = useState(false);
     const [filter, setFilter] = useState<'ALL' | 'UPCOMING' | 'COMPLETED'>('ALL');
+    const [deals, setDeals] = useState<any[]>([]);
 
     // Grouping State
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -168,6 +169,10 @@ export default function ActivitiesPage() {
                 }
             }
             setActivities(data);
+
+            // Fetch deals for dropdown
+            const dealsData = await api.getDeals(token!);
+            setDeals(dealsData);
         } catch (error) {
             // #region agent log
             fetch('http://127.0.0.1:7242/ingest/082deaa4-153a-4a98-a990-54ae31ef6246', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'src/app/activities/page.tsx:80', message: 'loadActivities error', data: { error: error?.message || 'unknown', filter: filter }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'initial', hypothesisId: 'A' }) }).catch(() => { });
@@ -662,20 +667,22 @@ export default function ActivitiesPage() {
             </div>
 
             {/* Add Modal */}
-            <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Schedule New Activity" size="md">
+            <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Schedule New Activity" size="lg">
                 <ActivityForm
                     onSubmit={handleAddActivity}
                     onCancel={() => setShowAddModal(false)}
+                    deals={deals}
                 />
             </Modal>
 
             {/* Edit Modal */}
-            <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Activity" size="md">
+            <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Activity" size="lg">
                 <ActivityForm
                     key={selectedActivity?.id}
                     onSubmit={handleEditActivity}
                     onCancel={() => setShowEditModal(false)}
                     initialData={selectedActivity}
+                    deals={deals}
                     isEdit
                 />
             </Modal>

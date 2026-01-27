@@ -16,6 +16,7 @@ router.get('/', async (req: AuthRequest, res, next) => {
             where: {
                 ...getOwnerFilter(req.user),
                 company: { not: null },
+                type: 'CUSTOMER', // Strict filter: Only CUSTOMERs show in Customer Accounts
                 ...(search && {
                     company: { contains: search as string, mode: 'insensitive' }
                 }),

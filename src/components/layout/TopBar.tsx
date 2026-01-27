@@ -133,7 +133,7 @@ export default function TopBar({ sidebarCollapsed, onMobileMenuToggle, isMobile 
                 duration: 0.3,
                 ease: [0.4, 0, 0.2, 1],
             }}
-            className="fixed top-0 right-0 h-16 z-[1000] glass-topbar flex items-center justify-between px-4 sm:px-6"
+            className="fixed top-0 right-0 h-16 z-30 glass-topbar flex items-center justify-between px-4 sm:px-6"
             style={{ left: 0 }}
         >
             {isMobile && (

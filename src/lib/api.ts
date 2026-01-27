@@ -155,8 +155,12 @@ class ApiClient {
         return this.request<PipelineOverview[]>('/api/dashboard/pipeline-overview', { token });
     }
 
-    async getSalesPerformance(token: string) {
-        return this.request<SalesPerformance[]>('/api/dashboard/sales-performance', { token });
+    async getSalesPerformance(
+        token: string,
+        opts?: { timeframe?: string; startDate?: string; endDate?: string }
+    ) {
+        const query = this.buildQuery(opts);
+        return this.request<SalesPerformance[]>(`/api/dashboard/sales-performance${query}`, { token });
     }
 
     async getReminders(token: string) {
@@ -176,7 +180,7 @@ class ApiClient {
         opts: { timeframe?: string; startDate?: string; endDate?: string } = { timeframe: 'week' }
     ) {
         const query = this.buildQuery(opts);
-        return this.request<{ name: string; new: number; won: number }[]>(`/api/dashboard/deals-count${query}`, { token });
+        return this.request<{ name: string; new: number; won: number; lost: number }[]>(`/api/dashboard/deals-count${query}`, { token });
     }
 
     // Leads
@@ -794,6 +798,38 @@ class ApiClient {
         });
     }
 
+    // Integrations - Google Workspace
+    async saveGoogleConfig(token: string, clientId: string, clientSecret: string) {
+        return this.request<{ success: boolean }>('/api/integrations/google/config', {
+            method: 'POST',
+            body: JSON.stringify({ clientId, clientSecret }),
+            token
+        });
+    }
+
+    async getGoogleAuthUrl(token: string) {
+        return this.request<{ url: string }>('/api/integrations/google/auth-url', { token });
+    }
+
+    async handleGoogleCallback(token: string, code: string) {
+        return this.request<{ success: boolean; message: string }>('/api/integrations/google/callback', {
+            method: 'POST',
+            body: JSON.stringify({ code }),
+            token
+        });
+    }
+
+    async syncGoogleContacts(token: string) {
+        return this.request<{ success: boolean; imported: number; totalFound: number }>('/api/integrations/google/contacts/sync', {
+            method: 'POST',
+            token
+        });
+    }
+
+    async getGoogleIntegrationStatus(token: string) {
+        return this.request<{ connected: boolean; lastSynced?: string }>('/api/integrations/google/status', { token });
+    }
+
     // Companies
     async getCompanies(token: string, search?: string) {
         const query = search ? `?search=${encodeURIComponent(search)}` : '';
@@ -802,6 +838,38 @@ class ApiClient {
 
     async getCompany(token: string, name: string) {
         return this.request<CompanyDetail>(`/api/companies/${encodeURIComponent(name)}`, { token });
+    }
+
+    // Purchase Orders
+    async getPurchaseOrders(token: string) {
+        return this.request<any[]>('/api/purchase-orders', { token });
+    }
+
+    async getPurchaseOrder(token: string, id: string) {
+        return this.request<any>(`/api/purchase-orders/${id}`, { token });
+    }
+
+    async createPurchaseOrder(token: string, data: any) {
+        return this.request<any>('/api/purchase-orders', {
+            method: 'POST',
+            body: JSON.stringify(data),
+            token
+        });
+    }
+
+    async updatePurchaseOrder(token: string, id: string, data: any) {
+        return this.request<any>(`/api/purchase-orders/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+            token
+        });
+    }
+
+    async deletePurchaseOrder(token: string, id: string) {
+        return this.request<any>(`/api/purchase-orders/${id}`, {
+            method: 'DELETE',
+            token
+        });
     }
 }
 

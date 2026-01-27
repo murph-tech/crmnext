@@ -40,13 +40,26 @@ export default function DashboardPage() {
 
   const [isLoading, setIsLoading] = useState(true);
 
+  const [showYearSelect, setShowYearSelect] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
-        const opts =
-          startDate && endDate
-            ? { startDate, endDate }
-            : { timeframe: timeFrame };
+        let opts: any = {};
+
+        if (startDate && endDate) {
+          opts = { startDate, endDate };
+        } else if (timeFrame === 'year') {
+          // Specific Year Logic
+          opts = {
+            startDate: `${selectedYear}-01-01`,
+            endDate: `${selectedYear}-12-31`,
+            timeframe: 'year'
+          };
+        } else {
+          opts = { timeframe: timeFrame };
+        }
 
         const promises: Promise<any>[] = [
           api.getDashboardStats(token!, opts),
@@ -73,7 +86,17 @@ export default function DashboardPage() {
     if (token) {
       loadDashboardData();
     }
-  }, [token, timeFrame, startDate, endDate]);
+  }, [token, timeFrame, startDate, endDate, selectedYear]);
+
+  // Handle year selection
+  const handleYearSelect = (year: number) => {
+    setSelectedYear(year);
+    setTimeFrame('year');
+    setShowYearSelect(false);
+    // Clear custom dates if picking year
+    setStartDate('');
+    setEndDate('');
+  };
 
   if (isLoading) {
     return (
@@ -134,8 +157,8 @@ export default function DashboardPage() {
     <div className="h-[400px]">
       <WonDealsChart
         timeframe={timeFrame}
-        startDate={startDate || undefined}
-        endDate={endDate || undefined}
+        startDate={timeFrame === 'year' ? `${selectedYear}-01-01` : startDate || undefined}
+        endDate={timeFrame === 'year' ? `${selectedYear}-12-31` : endDate || undefined}
       />
     </div>
   );
@@ -359,8 +382,8 @@ export default function DashboardPage() {
     <div className="h-[400px]">
       <DealsCountChart
         timeframe={timeFrame}
-        startDate={startDate || undefined}
-        endDate={endDate || undefined}
+        startDate={timeFrame === 'year' ? `${selectedYear}-01-01` : startDate || undefined}
+        endDate={timeFrame === 'year' ? `${selectedYear}-12-31` : endDate || undefined}
       />
     </div>
   );
@@ -386,13 +409,14 @@ export default function DashboardPage() {
 
           <div className="flex flex-col gap-3 items-end">
             <div className="flex bg-white rounded-xl p-1 shadow-sm border border-gray-100">
-              {['week', 'month', 'year'].map((t) => (
+              {['week', 'month'].map((t) => (
                 <button
                   key={t}
                   onClick={() => {
                     setTimeFrame(t);
                     setStartDate('');
                     setEndDate('');
+                    setShowYearSelect(false);
                   }}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${timeFrame === t && !startDate && !endDate
                     ? 'bg-gray-900 text-white shadow-md'
@@ -402,6 +426,35 @@ export default function DashboardPage() {
                   {t.charAt(0).toUpperCase() + t.slice(1)}
                 </button>
               ))}
+
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    if (timeFrame !== 'year') setTimeFrame('year');
+                    setShowYearSelect(!showYearSelect);
+                  }}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-1 ${timeFrame === 'year' && !startDate && !endDate
+                      ? 'bg-gray-900 text-white shadow-md'
+                      : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                >
+                  Year {selectedYear}
+                </button>
+                {showYearSelect && (
+                  <div className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-20 w-32 py-1">
+                    {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(year => (
+                      <button
+                        key={year}
+                        onClick={() => handleYearSelect(year)}
+                        className={`w-full px-4 py-2 text-left text-xs font-bold hover:bg-gray-50 transition-colors ${selectedYear === year ? 'text-[#007AFF] bg-blue-50' : 'text-gray-600'
+                          }`}
+                      >
+                        {year}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 bg-white rounded-xl px-3 py-2 shadow-sm border border-gray-100">

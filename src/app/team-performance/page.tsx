@@ -30,6 +30,8 @@ export default function TeamPerformancePage() {
     const [filteredData, setFilteredData] = useState<SalesPerfData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [timeframe, setTimeframe] = useState('year');
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
     useEffect(() => {
         if (!token || !user) return;
@@ -41,9 +43,20 @@ export default function TeamPerformancePage() {
 
         const loadData = async () => {
             try {
+                let options: any = { timeframe };
+
+                if (timeframe === 'year') {
+                    // Start from Jan 1st of selected year to Dec 31st of selected year
+                    const startDate = `${selectedYear}-01-01`;
+                    const endDate = `${selectedYear}-12-31`;
+                    options = { timeframe: 'year', startDate, endDate };
+                }
+
+                // When timeframe changes, we might want to show loading state or just update silently?
+                // Let's keep it smooth.
                 const [perfData, trendData] = await Promise.all([
-                    api.getSalesPerformance(token),
-                    api.getWonDeals(token, { timeframe: 'year', mode: 'count' })
+                    api.getSalesPerformance(token, options),
+                    api.getWonDeals(token, { ...options, mode: 'count' })
                 ]);
                 setSalesPerformance(perfData);
                 setFilteredData(perfData);
@@ -56,7 +69,7 @@ export default function TeamPerformancePage() {
         };
 
         loadData();
-    }, [token, user, router]);
+    }, [token, user, router, timeframe, selectedYear]);
 
     useEffect(() => {
         if (!searchQuery) {
@@ -198,7 +211,14 @@ export default function TeamPerformancePage() {
                     transition={{ delay: 0.2 }}
                     className="h-full min-h-[400px]"
                 >
-                    <SalesPerformanceChart data={salesPerformance} trendData={yearTrend} />
+                    <SalesPerformanceChart
+                        data={salesPerformance}
+                        trendData={yearTrend}
+                        timeframe={timeframe}
+                        onTimeframeChange={setTimeframe}
+                        currentYear={selectedYear}
+                        onYearChange={setSelectedYear}
+                    />
                 </motion.div>
             </div>
         </div>

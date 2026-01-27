@@ -67,9 +67,21 @@ router.get('/:id', async (req: AuthRequest, res, next) => {
 // Create contact
 router.post('/', async (req: AuthRequest, res, next) => {
     try {
+        const { firstName, lastName, email, phone, company, jobTitle, address, city, country, notes, type } = req.body;
+
         const contact = await prisma.contact.create({
             data: {
-                ...req.body,
+                firstName,
+                lastName,
+                email,
+                phone,
+                company,
+                jobTitle,
+                address,
+                city,
+                country,
+                notes,
+                type: type || 'CUSTOMER',
                 ownerId: req.user!.id,
             },
         });

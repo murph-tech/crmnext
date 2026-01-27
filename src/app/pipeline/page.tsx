@@ -965,7 +965,7 @@ export default function PipelinePage() {
             </div>
 
             {/* Add Deal Modal */}
-            <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add New Deal" size="md">
+            <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add New Deal" size="lg">
                 <DealForm
                     onSubmit={handleAddDeal}
                     onCancel={() => setShowAddModal(false)}
@@ -974,7 +974,8 @@ export default function PipelinePage() {
             </Modal>
 
             {/* Edit Deal Modal */}
-            <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Deal" size="md">
+            {/* Edit Deal Modal */}
+            <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Deal" size="lg">
                 <DealForm
                     key={selectedDeal?.id}
                     onSubmit={handleEditDeal}

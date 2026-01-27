@@ -492,7 +492,7 @@ export default function ProductsPage() {
             </div>
 
             {/* Add Modal */}
-            <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add Product / Service" size="md">
+            <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add Product / Service" size="lg">
                 <ProductForm
                     formData={formData}
                     setFormData={setFormData}
@@ -503,7 +503,7 @@ export default function ProductsPage() {
             </Modal>
 
             {/* Edit Modal */}
-            <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Product" size="md">
+            <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Product" size="lg">
                 <ProductForm
                     formData={formData}
                     setFormData={setFormData}
@@ -565,96 +565,143 @@ const ProductForm = ({
     isSubmitting: boolean;
     onCancel: () => void;
 }) => (
-    <form onSubmit={onSubmit} className="space-y-4">
-        <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Product Name *</label>
-            <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full h-10 px-3 rounded-xl spotlight-input text-sm"
-                required
-            />
+    <form onSubmit={onSubmit} className="space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left Column: Product Identity */}
+            <div className="space-y-6">
+                <div className="flex items-center gap-2 text-[#FF9500] mb-2">
+                    <Package className="w-4 h-4" />
+                    <h3 className="text-sm font-semibold uppercase tracking-wider">Product Information</h3>
+                </div>
+
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5 ml-1">Product Name *</label>
+                        <input
+                            type="text"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            className="w-full h-11 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#FF9500] focus:bg-white focus:border-transparent transition-all text-sm outline-none"
+                            placeholder="เช่น Professional Consulting, Enterprise Solution"
+                            required
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5 ml-1">Type</label>
+                            <select
+                                value={formData.type}
+                                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                                className="w-full h-11 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#FF9500] transition-all text-sm outline-none appearance-none"
+                            >
+                                <option value="SERVICE">Service</option>
+                                <option value="INVENTORY">Inventory</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5 ml-1 flex items-center gap-1">
+                                <Tag size={12} />
+                                SKU
+                            </label>
+                            <input
+                                type="text"
+                                value={formData.sku}
+                                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                                className="w-full h-11 px-4 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#FF9500] focus:bg-white focus:border-transparent transition-all text-sm outline-none"
+                                placeholder="PRO-001"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5 ml-1 flex items-center gap-1">
+                            Status
+                        </label>
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700">Available for deals</span>
+                            <div className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.isActive}
+                                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#FF9500]"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Right Column: Pricing & Details */}
+            <div className="space-y-6">
+                <div className="flex items-center gap-2 text-blue-600 mb-2">
+                    <Filter className="w-4 h-4" />
+                    <h3 className="text-sm font-semibold uppercase tracking-wider">Pricing & Details</h3>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100/50">
+                        <label className="block text-xs font-bold text-blue-600 uppercase mb-2 ml-1">Price (THB) *</label>
+                        <div className="relative">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-600 font-bold">฿</span>
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={formData.price}
+                                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                                className="w-full h-12 pl-10 pr-4 bg-white border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 transition-all text-lg font-bold text-gray-900 outline-none"
+                                placeholder="0.00"
+                                required
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5 ml-1">Description</label>
+                        <textarea
+                            value={formData.description}
+                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                            className="w-full h-[148px] px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#FF9500] focus:bg-white focus:border-transparent transition-all text-sm outline-none resize-none"
+                            placeholder="ระบุรายละเอียดสินค้าหรือบริการที่นี่..."
+                        />
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Type</label>
-                <select
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full h-10 px-3 rounded-xl spotlight-input text-sm"
+        {/* Footer Actions */}
+        <div className="flex items-center justify-between pt-6 border-t border-gray-100">
+            <p className="text-xs text-gray-400">
+                <span className="text-red-500">*</span> Required fields
+            </p>
+            <div className="flex gap-3">
+                <button
+                    type="button"
+                    onClick={onCancel}
+                    className="px-6 py-2.5 text-sm font-semibold text-gray-500 hover:bg-gray-100 rounded-xl transition-all"
                 >
-                    <option value="SERVICE">Service</option>
-                    <option value="INVENTORY">Inventory</option>
-                </select>
+                    Cancel
+                </button>
+                <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="inline-flex items-center gap-2 px-8 py-2.5 bg-gradient-to-r from-[#FF9500] to-[#FFAC33] text-white font-bold rounded-xl shadow-lg shadow-orange-500/25 hover:from-[#E68600] hover:to-[#FF9500] transition-all active:scale-95 disabled:opacity-50"
+                >
+                    {isSubmitting ? (
+                        <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                        <>
+                            <Plus size={18} />
+                            <span>{isEdit ? 'Save Changes' : 'Add Product'}</span>
+                        </>
+                    )}
+                </motion.button>
             </div>
-            <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">SKU</label>
-                <input
-                    type="text"
-                    value={formData.sku}
-                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                    className="w-full h-10 px-3 rounded-xl spotlight-input text-sm"
-                    placeholder="Optional"
-                />
-            </div>
-        </div>
-
-        <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Price (THB) *</label>
-            <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.price}
-                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                className="w-full h-10 px-3 rounded-xl spotlight-input text-sm"
-                required
-            />
-        </div>
-
-        <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
-            <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full h-24 px-3 py-2 rounded-xl spotlight-input text-sm resize-none"
-                placeholder="Product details..."
-            />
-        </div>
-
-        {isEdit && (
-            <div className="flex items-center gap-2">
-                <input
-                    type="checkbox"
-                    id="isActive"
-                    checked={formData.isActive}
-                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                    className="w-4 h-4 text-[#007AFF] rounded focus:ring-[#007AFF]"
-                />
-                <label htmlFor="isActive" className="text-sm font-medium text-gray-700">Active (Visible in deals)</label>
-            </div>
-        )}
-
-        <div className="flex justify-end gap-3 pt-4">
-            <button
-                type="button"
-                onClick={onCancel}
-                className="px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
-            >
-                Cancel
-            </button>
-            <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                type="submit"
-                disabled={isSubmitting}
-                className="px-4 py-2.5 bg-[#007AFF] text-white text-sm font-medium rounded-xl shadow-lg shadow-blue-500/20 disabled:opacity-50 flex items-center gap-2"
-            >
-                {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-                {isEdit ? 'Save Changes' : 'Add Product'}
-            </motion.button>
         </div>
     </form>
 );

@@ -14,7 +14,7 @@ interface DealsCountChartProps {
 
 export default function DealsCountChart({ timeframe, startDate, endDate }: DealsCountChartProps) {
     const { token } = useAuth();
-    const [data, setData] = useState<{ name: string; new: number; won: number }[]>([]);
+    const [data, setData] = useState<{ name: string; new: number; won: number; lost: number }[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -58,6 +58,13 @@ export default function DealsCountChart({ timeframe, startDate, endDate }: Deals
                             </span>
                             <span className="font-semibold text-gray-900">{payload[1]?.value || 0}</span>
                         </p>
+                        <p className="text-xs text-gray-500 flex items-center justify-between gap-4">
+                            <span className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-red-500"></span>
+                                Lost Deals
+                            </span>
+                            <span className="font-semibold text-gray-900">{payload[2]?.value || 0}</span>
+                        </p>
                     </div>
                 </div>
             );
@@ -69,7 +76,7 @@ export default function DealsCountChart({ timeframe, startDate, endDate }: Deals
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm h-full flex flex-col">
             <div className="mb-6">
                 <h3 className="text-lg font-bold text-gray-900">Deals Volume</h3>
-                <p className="text-sm text-gray-500">New Deals vs Won Deals</p>
+                <p className="text-sm text-gray-500">New vs Won vs Lost Deals</p>
             </div>
 
             <div className="flex-1 min-h-[300px] w-full">
@@ -96,6 +103,10 @@ export default function DealsCountChart({ timeframe, startDate, endDate }: Deals
                                 <linearGradient id="colorWon" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
                                     <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                                </linearGradient>
+                                <linearGradient id="colorLost" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#EF4444" stopOpacity={0.2} />
+                                    <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
                                 </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
@@ -135,6 +146,15 @@ export default function DealsCountChart({ timeframe, startDate, endDate }: Deals
                                 strokeWidth={2}
                                 fillOpacity={1}
                                 fill="url(#colorWon)"
+                            />
+                            <Area
+                                type="monotone"
+                                name="Lost Deals"
+                                dataKey="lost"
+                                stroke="#EF4444"
+                                strokeWidth={2}
+                                fillOpacity={1}
+                                fill="url(#colorLost)"
                             />
                         </AreaChart>
                     </ResponsiveContainer>

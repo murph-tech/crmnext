@@ -23,6 +23,12 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Google Integration
+  googleAccessToken  String?
+  googleRefreshToken String?
+  googleTokenExpiry  BigInt?  // Use BigInt for timestamp
+
+
   // Relations
   leads      Lead[]
   contacts   Contact[]
@@ -147,8 +153,17 @@ model Contact {
   convertedFromId String? @unique
   convertedFrom   Lead?   @relation(fields: [convertedFromId], references: [id])
   calendarEvents  CalendarEvent[]
+  
+  type         ContactType @default(CUSTOMER)
 
   @@map("contacts")
+}
+
+enum ContactType {
+  CUSTOMER
+  VENDOR
+  PARTNER
+  OTHER
 }
 
 // ==================== DEALS ====================
@@ -441,4 +456,74 @@ enum PaymentMethod {
   CHEQUE
   CREDIT_CARD
   OTHER
+}
+
+// ==================== PURCHASE ORDERS ====================
+model PurchaseOrder {
+  id           String    @id @default(cuid())
+  poNumber     String?   @unique // PO-YYYYMM-XXXX
+  title        String
+  date         DateTime  @default(now())
+  expectedDate DateTime?
+  
+  // Financials
+  subtotal     Float     @default(0)
+  discount     Float     @default(0)
+  vatRate      Float     @default(7)
+  vatAmount    Float     @default(0)
+  grandTotal   Float     @default(0)
+  
+  // Theme & Settings
+  themeColor   String?   @default("#FF9500") // Orange for PO
+  notes        String?
+  terms        String?
+  status       PurchaseOrderStatus @default(DRAFT)
+  
+  // Vendor Info (Snapshot or Reference)
+  vendorName    String?
+  vendorAddress String?
+  vendorTaxId   String?
+  vendorPhone   String?
+  vendorEmail   String?
+  
+  // Relations
+  ownerId      String
+  owner        User       @relation(fields: [ownerId], references: [id])
+  contactId    String?
+  contact      Contact?   @relation(fields: [contactId], references: [id])
+  items        PurchaseOrderItem[]
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([poNumber])
+  @@index([contactId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id              String   @id @default(cuid())
+  description     String
+  quantity        Int      @default(1)
+  unitPrice       Float
+  discount        Float    @default(0)
+  totalPrice      Float    // (quantity * unitPrice) - discount
+  
+  // Optional: Link to Product catalog
+  productId       String?
+  product         Product? @relation(fields: [productId], references: [id])
+  
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  
+  @@index([purchaseOrderId])
+  @@map("purchase_order_items")
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  APPROVED
+  COMPLETED
+  CANCELLED
 }

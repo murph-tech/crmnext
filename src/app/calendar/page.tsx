@@ -173,6 +173,7 @@ export default function CalendarPage() {
           isOpen={showCreateEvent}
           onClose={() => setShowCreateEvent(false)}
           title="สร้างนัดหมาย"
+          size="lg"
         >
           <CreateEventModal onSubmit={handleCreateEvent} />
         </Modal>

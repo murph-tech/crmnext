@@ -16,9 +16,11 @@ import dashboardRoutes from './routes/dashboard.routes';
 import productsRoutes from './routes/products.routes';
 import settingsRoutes from './routes/settings.routes';
 import usersRoutes from './routes/users.routes';
-import documentRoutes from './routes/documents.routes';
+import documentRoutes from './routes/documents.routes'; // Restore
 import companiesRoutes from './routes/companies.routes';
 import calendarRoutes from './routes/calendar.routes';
+import integrationRoutes from './routes/integration.routes';
+import purchaseOrdersRoutes from './routes/purchase-orders.routes';
 import { startReminderService } from './services/reminder.service';
 
 // Middleware
@@ -57,6 +59,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/leads', leadsRoutes);
 app.use('/api/contacts', contactsRoutes);
+app.use('/api/purchase-orders', purchaseOrdersRoutes); // New
 app.use('/api/deals', dealsRoutes);
 app.use('/api/activities', activitiesRoutes);
 app.use('/api/dashboard', dashboardRoutes);
@@ -65,6 +68,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/companies', companiesRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/integrations', integrationRoutes);
 app.use('/api', documentRoutes);
 
 // Error handling

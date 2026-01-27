@@ -1,25 +1,20 @@
 'use client';
 
+import { useState } from 'react';
 import {
-    BarChart,
-    Bar,
+    AreaChart,
+    Area,
     XAxis,
     YAxis,
     CartesianGrid,
     Tooltip,
     ResponsiveContainer,
-    Cell,
-    Rectangle,
-    Radar,
-    RadarChart,
-    PolarGrid,
-    PolarAngleAxis,
-    PolarRadiusAxis,
-    Legend
+    BarChart,
+    Bar,
+    Cell
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState } from 'react';
-import { RefreshCcw, BarChart2, Zap, Info } from 'lucide-react';
+import { TrendingUp, Users, Calendar, Trophy, ChevronDown } from 'lucide-react';
 
 interface SalesPerfData {
     id: string;
@@ -30,280 +25,279 @@ interface SalesPerfData {
 interface SalesPerformanceChartProps {
     data: SalesPerfData[];
     trendData: any[];
+    timeframe: string;
+    onTimeframeChange: (value: string) => void;
+    currentYear: number;
+    onYearChange: (year: number) => void;
 }
-
-// Custom specialized bar to make it look like a premium capsule
-const CustomBar = (props: any) => {
-    const { fill, x, y, width, height, barSize } = props;
-    if (height <= 0) return null;
-
-    return (
-        <Rectangle
-            {...props}
-            radius={[width / 2, width / 2, width / 2, width / 2]}
-            className="drop-shadow-sm transition-all duration-500"
-        />
-    );
-};
 
 const THAI_MONTHS = [
     'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
     'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
 ];
 
-const COLORS = [
-    '#007AFF', // Blue
-    '#34C759', // Green
-    '#FF9500', // Orange
-    '#AF52DE', // Purple
-    '#FF3B30', // Red
-    '#5856D6', // Indigo
-    '#FFCC00', // Yellow
-    '#FF2D55', // Pink
-];
+export default function SalesPerformanceChart({ data, trendData, timeframe, onTimeframeChange, currentYear, onYearChange }: SalesPerformanceChartProps) {
+    const [activeTab, setActiveTab] = useState<'trend' | 'ranking'>('trend');
+    const [showYearSelect, setShowYearSelect] = useState(false);
 
-export default function SalesPerformanceChart({ data, trendData }: SalesPerformanceChartProps) {
-    const [viewMode, setViewMode] = useState<'bar' | 'radar'>('bar');
-    const [isRefreshing, setIsRefreshing] = useState(false);
+    // Process Trend Data - Focus on TOTAL WON deals for accurate team trend
+    const processedTrendData = trendData.map(item => {
+        const [year, month, day] = item.name.split('-');
+        let name = item.name;
 
-    // Get all unique salesperson names who have at least one deal or are in the performance list
-    const salespeopleNames = Array.from(new Set([
-        ...data.map(d => d.name),
-        ...trendData.flatMap(item => Object.keys(item).filter(k => !['name', 'won', 'lost'].includes(k)))
-    ])).slice(0, 8); // Limit to top 8 for visual clarity
+        if (timeframe === 'year') {
+            name = month ? THAI_MONTHS[parseInt(month) - 1] : item.name;
+        } else if (timeframe === 'month') {
+            name = day ? `${day}/${month}` : item.name;
+        }
 
-    // Format trend data for Grouped Bar Chart
-    const chartData = (trendData || []).map(item => {
-        const [year, month] = item.name.split('-');
         return {
             ...item,
-            monthName: month ? THAI_MONTHS[parseInt(month) - 1] : item.name,
-            totalWon: item.won || 0
+            name,
+            value: item.won || 0
         };
     });
 
-    const maxDealsIndividual = Math.max(...data.map(d => d.deals), 1);
-
-    // Data for Radar - needs individual salesperson data
-    const radarData = data.map(item => ({
-        subject: item.name,
-        A: item.deals,
-        B: item.deals * 0.8,
-        fullMark: maxDealsIndividual + 2
-    }));
-
-    const handleRefresh = () => {
-        setIsRefreshing(true);
-        setTimeout(() => setIsRefreshing(false), 800);
-    };
+    // Process Ranking Data (Top 10)
+    const sortedData = [...data]
+        .sort((a, b) => b.deals - a.deals)
+        .slice(0, 8);
 
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
-            const items = payload.filter((p: any) => !['won', 'lost', 'totalWon'].includes(p.dataKey));
-
             return (
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    className="bg-white/90 backdrop-blur-2xl p-6 border border-white/50 shadow-2xl rounded-[32px] ring-1 ring-black/5 min-w-[240px]"
-                >
-                    <div className="mb-4">
-                        <p className="font-black text-gray-900 text-lg leading-tight">{label}</p>
-                        <div className="flex items-center gap-1.5 mt-1">
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#007AFF] animate-pulse" />
-                            <p className="text-[10px] text-gray-400 font-black uppercase tracking-[0.1em]">Monthly Performance</p>
-                        </div>
+                <div className="bg-white p-4 rounded-2xl shadow-xl border border-gray-100 min-w-[160px]">
+                    <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1 opacity-70">{label}</p>
+                    <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-[#007AFF]" />
+                        <span className="text-2xl font-black text-gray-900 tracking-tight">
+                            {payload[0].value.toLocaleString()}
+                        </span>
+                        <span className="text-xs font-bold text-gray-400 mt-2">Deals</span>
                     </div>
-
-                    <div className="space-y-2.5">
-                        {items.map((entry: any, index: number) => (
-                            <div key={index} className="flex items-center justify-between gap-4 p-3 rounded-2xl bg-gray-50/50 border border-gray-100/50 transition-all hover:bg-white hover:shadow-sm">
-                                <div className="flex items-center gap-2.5 overflow-hidden">
-                                    <div className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: entry.color }} />
-                                    <span className="text-[11px] font-bold text-gray-600 truncate">{entry.name}</span>
-                                </div>
-                                <span className="text-sm font-black text-gray-900 shrink-0">
-                                    {entry.value.toLocaleString()}
-                                </span>
-                            </div>
-                        ))}
-
-                        {items.length === 0 && (
-                            <div className="py-4 text-center">
-                                <p className="text-xs font-bold text-gray-300">ไม่มีข้อมูลการขายในเดือนนี้</p>
-                            </div>
-                        )}
-
-                        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between px-1">
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">ยอดรวมรายเดือน</span>
-                            <span className="text-lg font-black text-[#007AFF]">
-                                {payload.find((p: any) => p.dataKey === 'totalWon')?.value?.toLocaleString() || 0}
-                            </span>
-                        </div>
-                    </div>
-                </motion.div>
+                </div>
             );
         }
         return null;
     };
 
-    return (
-        <div className="bg-white border border-gray-100 rounded-[40px] p-8 shadow-sm h-full flex flex-col relative overflow-hidden group">
-            {/* Background Aesthetic */}
-            <div className="absolute -top-32 -right-32 w-80 h-80 bg-blue-50/50 rounded-full blur-[100px] transition-all group-hover:bg-indigo-50/50" />
+    const handleYearSelect = (year: number) => {
+        onYearChange(year);
+        setShowYearSelect(false);
+    };
 
-            <div className="flex flex-col md:flex-row md:items-start justify-between mb-8 relative z-10 gap-4">
+    return (
+        <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm h-full flex flex-col relative overflow-hidden">
+            {/* Decorative Background */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-blue-50/50 to-transparent rounded-bl-[100px] -z-0 pointer-events-none opacity-50" />
+
+            {/* Header & Tabs */}
+            <div className="relative z-10 flex flex-col xl:flex-row xl:items-start justify-between mb-8 gap-6">
                 <div>
-                    <h2 className="text-2xl font-black text-gray-900 tracking-tight">สรุปผลงานระดับทีม</h2>
-                    <p className="text-sm font-bold text-gray-400 mt-1 max-w-[280px]">เปรียบเทียบขีดความสามารถการปิดการขายรายเดือนของทีม</p>
+                    <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-[#007AFF]">
+                            <TrendingUp size={18} />
+                        </div>
+                        ประสิทธิภาพทีมขาย
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-2 font-medium ml-1">
+                        {activeTab === 'trend'
+                            ? 'ภาพรวมการเติบโตยอดขายตามช่วงเวลา'
+                            : 'จัดอันดับผลงานสมาชิกในทีม'}
+                    </p>
                 </div>
 
-                <div className="flex items-center gap-1.5 bg-gray-50 p-1.5 rounded-[22px] border border-gray-200/50">
-                    <button
-                        onClick={() => setViewMode('bar')}
-                        className={`px-5 py-2 flex items-center gap-2 text-[10px] font-black rounded-xl transition-all ${viewMode === 'bar'
-                            ? 'bg-white text-[#007AFF] shadow-sm border border-gray-100'
-                            : 'text-gray-400 hover:text-gray-600'
-                            }`}
-                    >
-                        <BarChart2 size={12} strokeWidth={3} />
-                        TIMELINE
-                    </button>
-                    <button
-                        onClick={handleRefresh}
-                        className={`px-5 py-2 flex items-center gap-2 text-[10px] font-black rounded-xl transition-all text-gray-400 hover:text-gray-600 active:scale-95`}
-                    >
-                        <Zap size={12} strokeWidth={3} className={isRefreshing ? 'animate-pulse text-yellow-500' : ''} />
-                        {isRefreshing ? 'FETCHING...' : 'SYNC'}
-                    </button>
-                    <button
-                        onClick={() => setViewMode('radar')}
-                        className={`px-5 py-2 flex items-center gap-2 text-[10px] font-black rounded-xl transition-all ${viewMode === 'radar'
-                            ? 'bg-white text-[#007AFF] shadow-sm border border-gray-100'
-                            : 'text-gray-400 hover:text-gray-600'
-                            }`}
-                    >
-                        <RefreshCcw size={12} strokeWidth={3} />
-                        SKILLS
-                    </button>
+                <div className="flex flex-col sm:flex-row gap-3">
+                    {/* Timeframe Selector */}
+                    <div className="bg-gray-50 p-1 rounded-xl border border-gray-100 flex items-center shrink-0 self-start">
+                        <button
+                            onClick={() => onTimeframeChange('week')}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${timeframe === 'week'
+                                    ? 'bg-white text-[#007AFF] shadow-sm ring-1 ring-black/5'
+                                    : 'text-gray-400 hover:text-gray-600'
+                                }`}
+                        >
+                            Last Week
+                        </button>
+                        <button
+                            onClick={() => onTimeframeChange('month')}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${timeframe === 'month'
+                                    ? 'bg-white text-[#007AFF] shadow-sm ring-1 ring-black/5'
+                                    : 'text-gray-400 hover:text-gray-600'
+                                }`}
+                        >
+                            Last Month
+                        </button>
+
+                        <div className="relative">
+                            <button
+                                onClick={() => {
+                                    onTimeframeChange('year');
+                                    setShowYearSelect(!showYearSelect);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 ${timeframe === 'year'
+                                        ? 'bg-white text-[#007AFF] shadow-sm ring-1 ring-black/5'
+                                        : 'text-gray-400 hover:text-gray-600'
+                                    }`}
+                            >
+                                Year {currentYear} <ChevronDown size={12} />
+                            </button>
+
+                            <AnimatePresence>
+                                {showYearSelect && timeframe === 'year' && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: 10 }}
+                                        className="absolute top-full right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-20 w-32 py-1"
+                                    >
+                                        {[2024, 2025, 2026, 2027, 2028, 2029, 2030].map(year => (
+                                            <button
+                                                key={year}
+                                                onClick={() => handleYearSelect(year)}
+                                                className={`w-full px-4 py-2 text-left text-xs font-bold hover:bg-gray-50 transition-colors ${currentYear === year ? 'text-[#007AFF] bg-blue-50' : 'text-gray-600'
+                                                    }`}
+                                            >
+                                                {year}
+                                            </button>
+                                        ))}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    </div>
+
+                    {/* View Toggle */}
+                    <div className="bg-gray-50 p-1 rounded-xl border border-gray-100 flex shrink-0 self-start">
+                        <button
+                            onClick={() => setActiveTab('trend')}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${activeTab === 'trend'
+                                    ? 'bg-white text-[#007AFF] shadow-sm ring-1 ring-black/5'
+                                    : 'text-gray-400 hover:text-gray-600'
+                                }`}
+                        >
+                            <Calendar size={12} />
+                            Trend
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('ranking')}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${activeTab === 'ranking'
+                                    ? 'bg-white text-[#007AFF] shadow-sm ring-1 ring-black/5'
+                                    : 'text-gray-400 hover:text-gray-600'
+                                }`}
+                        >
+                            <Trophy size={12} />
+                            Rank
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div className="flex-1 w-full min-h-[350px] relative z-10 mt-2">
+            {/* Chart Area */}
+            <div className="flex-1 w-full min-h-[300px] relative z-10">
                 <AnimatePresence mode="wait">
-                    {viewMode === 'bar' ? (
+                    {activeTab === 'trend' ? (
                         <motion.div
-                            key="bar-chart"
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -10 }}
+                            key="trend"
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 1.05 }}
+                            transition={{ duration: 0.3 }}
                             className="w-full h-full"
                         >
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart
-                                    data={chartData}
-                                    margin={{ top: 20, right: 10, left: -20, bottom: 0 }}
-                                    barGap={6}
-                                >
-                                    <CartesianGrid strokeDasharray="0" vertical={false} stroke="#f1f5f9" />
-
+                                <AreaChart data={processedTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorWon" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#007AFF" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#007AFF" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                     <XAxis
-                                        dataKey="monthName"
+                                        dataKey="name"
                                         axisLine={false}
                                         tickLine={false}
-                                        tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 400 }}
+                                        tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 500 }}
                                         dy={15}
+                                        padding={{ left: 10, right: 10 }}
                                     />
-
                                     <YAxis
                                         axisLine={false}
                                         tickLine={false}
-                                        tick={{ fill: '#cbd5e1', fontSize: 11, fontWeight: 300 }}
+                                        tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 500 }}
                                     />
-
                                     <Tooltip
                                         content={<CustomTooltip />}
-                                        cursor={{ fill: 'rgba(0,0,0,0.015)', radius: [24, 24, 24, 24] }}
-                                        wrapperStyle={{ outline: 'none' }}
+                                        cursor={{ stroke: '#007AFF', strokeWidth: 2, strokeDasharray: '4 4', opacity: 0.5 }}
                                     />
-
-                                    {/* Legend for salespeople */}
-                                    <Legend
-                                        verticalAlign="top"
-                                        align="right"
-                                        iconType="circle"
-                                        wrapperStyle={{ paddingBottom: 20, fontSize: 10, fontWeight: 400, textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                                    <Area
+                                        type="monotone"
+                                        dataKey="value"
+                                        stroke="#007AFF"
+                                        strokeWidth={4}
+                                        fillOpacity={1}
+                                        fill="url(#colorWon)"
+                                        animationDuration={1500}
                                     />
-
-                                    {/* Invisible bar just to pass total won to tooltip */}
-                                    <Bar dataKey="totalWon" fill="transparent" isAnimationActive={false} />
-
-                                    {salespeopleNames.map((name, index) => (
-                                        <Bar
-                                            key={name}
-                                            dataKey={name}
-                                            name={name}
-                                            radius={[6, 6, 6, 6]}
-                                            barSize={8}
-                                            fill={COLORS[index % COLORS.length]}
-                                            animationDuration={1500}
-                                            animationBegin={index * 150}
-                                            minPointSize={2}
-                                            shape={<CustomBar />}
-                                        />
-                                    ))}
-                                </BarChart>
+                                </AreaChart>
                             </ResponsiveContainer>
                         </motion.div>
                     ) : (
                         <motion.div
-                            key="radar-chart"
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 1.05 }}
+                            key="ranking"
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -20 }}
+                            transition={{ duration: 0.3 }}
                             className="w-full h-full"
                         >
                             <ResponsiveContainer width="100%" height="100%">
-                                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={radarData}>
-                                    <PolarGrid stroke="#f1f5f9" />
-                                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 400 }} />
-                                    <PolarRadiusAxis
-                                        angle={30}
-                                        domain={[0, maxDealsIndividual + 2]}
-                                        tick={false}
+                                <BarChart
+                                    data={sortedData}
+                                    layout="vertical"
+                                    margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                                    barSize={24}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                                    <XAxis type="number" hide />
+                                    <YAxis
+                                        dataKey="name"
+                                        type="category"
+                                        width={120}
                                         axisLine={false}
+                                        tickLine={false}
+                                        tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }}
                                     />
-                                    <Radar
-                                        name="สมาชิกทีม"
-                                        dataKey="A"
-                                        stroke="#007AFF"
-                                        fill="#007AFF"
-                                        fillOpacity={0.15}
-                                        strokeWidth={4}
-                                        animationDuration={1500}
+                                    <Tooltip
+                                        cursor={{ fill: '#f8fafc', radius: 8 }}
+                                        content={({ active, payload, label }) => {
+                                            if (active && payload && payload.length) {
+                                                return (
+                                                    <div className="bg-white p-3 rounded-xl shadow-xl border border-gray-100">
+                                                        <p className="font-bold text-sm text-gray-900 mb-1">{label}</p>
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold bg-blue-50 text-[#007AFF]">
+                                                            {payload[0].value} Won Deals
+                                                        </span>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        }}
                                     />
-                                    <Tooltip content={<CustomTooltip />} />
-                                </RadarChart>
+                                    <Bar dataKey="deals" radius={[0, 6, 6, 0]} background={{ fill: '#f8fafc', radius: 6 }}>
+                                        {sortedData.map((entry, index) => (
+                                            <Cell
+                                                key={`cell-${index}`}
+                                                fill={index === 0 ? '#007AFF' : index === 1 ? '#34C759' : index === 2 ? '#FF9500' : '#cbd5e1'}
+                                            />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
                             </ResponsiveContainer>
                         </motion.div>
                     )}
                 </AnimatePresence>
-            </div>
-
-            <div className="mt-8 pt-6 border-t border-gray-50 relative z-10 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-50 rounded-xl text-[#007AFF] shadow-inner">
-                        <Info size={14} />
-                    </div>
-                    <p className="text-[11px] font-bold text-gray-400 tracking-tight leading-4">
-                        แสดงข้อมูลประสิทธิภาพการขายแยกตามรายบุคคล<br />
-                        ในช่วงเวลา 12 เดือนที่ผ่านมา
-                    </p>
-                </div>
-                <div className="flex items-center gap-2 bg-emerald-50 px-4 py-1.5 rounded-full border border-emerald-100/50">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse" />
-                    <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Live Connect</span>
-                </div>
             </div>
         </div>
     );
